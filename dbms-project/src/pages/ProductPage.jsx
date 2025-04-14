@@ -1,18 +1,13 @@
-import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import api from "../services/api";
+import React, { useEffect, useState } from "react";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Navigation, Autoplay } from "swiper/modules";
+import "swiper/css";
+import "swiper/css/navigation";
+import api from "../services/api"; // Import API service
 
-const ProductPage = () => {
+const Home = () => {
     const [products, setProducts] = useState([]);
-    const [selectedCategory, setSelectedCategory] = useState("All");
-    const [selectedBrand, setSelectedBrand] = useState("All");
-    const [searchTerm, setSearchTerm] = useState("");
-    const [minPrice, setMinPrice] = useState("");
-    const [maxPrice, setMaxPrice] = useState("");
-    const [selectedDiscount, setSelectedDiscount] = useState("All");
-    const [isSeller, setIsSeller] = useState(false);
-
-    const userId = localStorage.getItem("userId"); // Assuming user ID is stored in localStorage
 
     useEffect(() => {
         api.get("/products")
@@ -22,146 +17,52 @@ const ProductPage = () => {
             .catch(error => {
                 console.error("Error fetching products:", error);
             });
-
-        // Check if user is a seller
-        if (userId) {
-            api.get(`/is-verified/${userId}`)
-                .then(response => {
-                    setIsSeller(response.data.isSeller); // Backend should return { isSeller: true/false }
-                })
-                .catch(error => {
-                    console.error("Error checking seller status:", error);
-                });
-        }
-    }, [userId]);
-
-    // Get unique categories and brands for filters
-    const categories = ["All", ...new Set(products.map(product => product.category))];
-    const brands = ["All", ...new Set(products.map(product => product.brand))];
-
-    // Filtering Logic
-    const filteredProducts = products.filter(product => {
-        const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
-        const matchesBrand = selectedBrand === "All" || product.brand === selectedBrand;
-        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesPrice =
-            (!minPrice || product.price >= parseFloat(minPrice)) &&
-            (!maxPrice || product.price <= parseFloat(maxPrice));
-
-        const matchesDiscount =
-            selectedDiscount === "All" ||
-            (product.discount >= parseInt(selectedDiscount));
-
-        return matchesCategory && matchesBrand && matchesSearch && matchesPrice && matchesDiscount;
-    });
+    }, []);
 
     return (
-        <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-950 to-gray-400 text-black p-10">
-            <h1 className="text-4xl font-extrabold text-white mb-2">Our Products</h1>
-            <p className="text-white text-lg mb-6">Find the best gadgets & accessories for your needs</p>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white p-10">
 
-            {/* Show Add Product Button Only If User is a Seller */}
-            {isSeller && (
-                <Link
-                    to="/add-product"
-                    className="mb-6 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold shadow-md hover:bg-green-700 transition"
-                >
-                    + Add Product
+            <div className="text-center mb-14">
+                <h1 className="text-5xl font-extrabold mb-4 drop-shadow-2xl text-gradient-to-r from-indigo-500 via-blue-500 to-purple-500">
+                    Welcome to ShopEz
+                </h1>
+                <p className="text-lg text-gray-300 max-w-lg mx-auto mb-8">
+                    Discover the best deals on premium tech accessories and gadgets. Top quality products at unbeatable prices!
+                </p>
+                <Link to="/products" className="mt-5 inline-block bg-gradient-to-r from-teal-600 to-teal-800 text-white px-8 py-3 rounded-full font-semibold text-lg shadow-xl transform hover:scale-105 transition duration-300 hover:bg-teal-700 hover:shadow-2xl">
+                    View Products
                 </Link>
-            )}
-
-            {/* Search Input */}
-            <input
-                type="text"
-                placeholder="Search for products..."
-                className="mb-4 px-4 py-2 border border-gray-300 rounded-lg shadow-md w-72"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-            />
-
-            {/* Filters Container */}
-            <div className="flex flex-wrap gap-4 mb-6 justify-center">
-                <div className="text-white font-bold">Filter Based On:</div>
-                {/* Category Filter */}
-                <div className="text-white">Category:</div>
-                <select
-                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white shadow-md"
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                >
-                    {categories.map((category, index) => (
-                        <option key={index} value={category}>
-                            {category}
-                        </option>
-                    ))}
-                </select>
-
-                {/* Brand Filter */}
-                <select
-                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white shadow-md"
-                    value={selectedBrand}
-                    onChange={(e) => setSelectedBrand(e.target.value)}
-                >
-                    {brands.map((brand, index) => (
-                        <option key={index} value={brand}>
-                            {brand}
-                        </option>
-                    ))}
-                </select>
-
-                {/* Price Range Filter */}
-                <input
-                    type="number"
-                    placeholder="Min Price"
-                    className="px-3 py-2 border border-gray-300 rounded-lg shadow-md w-28"
-                    value={minPrice}
-                    onChange={(e) => setMinPrice(Math.max(0, e.target.value))}
-                />
-                <input
-                    type="number"
-                    placeholder="Max Price"
-                    className="px-3 py-2 border border-gray-300 rounded-lg shadow-md w-28"
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(Math.max(0, e.target.value))}
-                />
-
-                {/* Discount Filter */}
-                <select
-                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white shadow-md"
-                    value={selectedDiscount}
-                    onChange={(e) => setSelectedDiscount(e.target.value)}
-                >
-                    <option value="All">Any Discount</option>
-                    <option value="10">10% or more</option>
-                    <option value="20">20% or more</option>
-                    <option value="30">30% or more</option>
-                    <option value="40">40% or more</option>
-                </select>
             </div>
 
-            {/* Product Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 px-6 max-w-6xl">
-                {filteredProducts.length > 0 ? (
-                    filteredProducts.map(product => (
-                        <div key={product.product_id} className="p-4 bg-white rounded-lg shadow-lg transform transition duration-300 hover:shadow-xl hover:scale-105">
-                            <img src={product.image} alt={product.name} className="w-full h-48 object-cover rounded-md" />
-                            <div className="mt-3 text-center">
-                                <h2 className="text-lg font-semibold text-gray-800">{product.name}</h2>
-                                <p className="text-blue-600 font-bold text-lg">₹{product.price}</p>
-                                <p className="text-green-600 font-semibold">{product.discount}% Off</p>
-                                <Link to={`/product/${product.product_id}`} className="text-blue-500 hover:underline">
-                                    View Details
-                                </Link>
+            {/* Swiper Card Slider */}
+            <div className="w-full max-w-6xl">
+                <Swiper
+                    modules={[Navigation, Autoplay]}
+                    spaceBetween={20}
+                    slidesPerView={3}
+                    navigation
+                    autoplay={{ delay: 2500 }}
+                    loop={true}
+                    breakpoints={{
+                        640: { slidesPerView: 1 },
+                        768: { slidesPerView: 2 },
+                        1024: { slidesPerView: 3 },
+                    }}
+                >
+                    {products.map((product) => (
+                        <SwiperSlide key={product.id}>
+                            <div className="p-6 border border-gray-700 rounded-xl bg-gradient-to-t from-gray-800 to-gray-900 backdrop-blur-xl shadow-2xl flex flex-col items-center text-center transition-all hover:scale-105 hover:shadow-3xl transform duration-300 hover:rotate-3d">
+                                <img src={product.image} alt={product.name} className="w-44 h-44 object-cover rounded-lg mb-4 transition-all hover:scale-110 shadow-lg" />
+                                <h2 className="text-lg font-semibold text-white mb-2">{product.name}</h2>
+                                <p className="text-gray-400">₹{product.price}</p>
                             </div>
-                        </div>
-                    ))
-                ) : (
-                    <p className="text-white text-lg mt-6">No products found</p>
-                )}
+                        </SwiperSlide>
+                    ))}
+                </Swiper>
             </div>
-        </div >
+
+        </div>
     );
 };
 
-export default ProductPage;
+export default Home;

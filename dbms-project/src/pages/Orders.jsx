@@ -58,19 +58,39 @@ const Orders = () => {
         return Array.from(ordersMap.values());
     };
 
-    if (loading) return <div className="text-center text-lg p-10">Loading...</div>;
-    if (error) return <div className="text-center text-lg p-10 text-red-500">{error}</div>;
+    if (loading) {
+        return (
+            <div className="min-h-screen flex justify-center items-center bg-gradient-to-b from-gray-900 to-black text-white text-lg">
+                Loading your orders...
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen flex justify-center items-center bg-gradient-to-b from-gray-900 to-black text-red-400 text-lg">
+                {error}
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-950 to-gray-400 p-10">
-            <h1 className="text-3xl font-bold text-white mb-6">Your Orders</h1>
-            <div className="w-full max-w-4xl">
+        <div className="min-h-screen flex flex-col items-center bg-gradient-to-br from-gray-950 via-gray-900 to-black px-4 py-10">
+            <h1 className="text-4xl font-extrabold text-white mb-8 drop-shadow-sm">
+                Your Orders
+            </h1>
+            <div className="w-full max-w-5xl space-y-6">
                 {orders.length > 0 ? (
                     orders.map((order) => (
-                        <OrderSummary key={order.order_id} order={order} />
+                        <div
+                            key={order.order_id}
+                            className="backdrop-blur-md bg-white bg-opacity-5 border border-gray-700 rounded-2xl p-5 shadow-lg"
+                        >
+                            <OrderSummary order={order} />
+                        </div>
                     ))
                 ) : (
-                    <p className="text-white">No orders found.</p>
+                    <p className="text-gray-300 text-center text-lg">No orders found.</p>
                 )}
             </div>
         </div>
