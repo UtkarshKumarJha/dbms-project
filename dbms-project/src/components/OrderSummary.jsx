@@ -55,7 +55,30 @@ const OrderSummary = ({ order }) => {
         }
     };
 
+    const subtotal = order?.items?.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+    // Assuming each item may have a discount field (in percentage or price), apply discount if exists.
+    const totalDiscount = order?.items?.reduce((acc, item) => {
+        if (item.discount) {
+            return acc + (item.price * item.discount / 100) * item.quantity;
+        }
+        return acc;
+    }, 0);
+
+    const totalAfterDiscount = subtotal - totalDiscount;
+
+
     const isCancelable = !["Cancelled", "Delivered"].includes(order?.status);
+
+    // Assuming item.discount is a percentage, you can adjust the logic based on how you store the discount.
+    const calculateDiscountedPrice = (item) => {
+        if (item.discount) {
+            console.log("Discounted Price Calculation:", item.price, item.discount);
+            const discountAmount = (item.price * item.discount) / 100; // If discount is a percentage
+            return item.price - discountAmount;
+        }
+        return item.price; // No discount applied
+    };
 
     return (
         <div
@@ -75,6 +98,7 @@ const OrderSummary = ({ order }) => {
                     order.items.map((item) => {
                         const availableQty = stockMap[item.product_id];
                         const isOutOfStock = availableQty !== undefined && item.quantity > availableQty;
+                        const discountedPrice = calculateDiscountedPrice(item);
 
                         return (
                             <div
@@ -97,8 +121,15 @@ const OrderSummary = ({ order }) => {
                                     </p>
                                     <p className="text-gray-600"><strong>Quantity:</strong> {item.quantity}</p>
                                     <p className="text-gray-700">
-                                        <strong>Price:</strong> {formatCurrency(item.price)} × {item.quantity} = {formatCurrency(item.price * item.quantity)}
+                                        <strong>Price:</strong> {formatCurrency(item.price)}
                                     </p>
+
+                                    {/* Display Discounted Price */}
+                                    {item.discount && (
+                                        <p className="text-gray-600">
+                                            <strong>Price After Discount:</strong> {formatCurrency(discountedPrice)} × {item.quantity} = {formatCurrency(discountedPrice * item.quantity)}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         );

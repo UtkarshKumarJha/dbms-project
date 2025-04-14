@@ -63,7 +63,17 @@ const Cart = () => {
                     <div key={item.cart_id} className="flex items-center justify-between border border-gray-300 p-4 rounded-lg shadow-md bg-white mb-3">
                         <div>
                             <h2 className="text-lg font-semibold text-gray-800">{item.product_name}</h2>
-                            <p className="text-gray-600">₹{item.price} x {item.quantity} = ₹{item.price * item.quantity}</p>
+                            {item.discount ? (
+                                <div className="text-gray-600">
+                                    <p className="line-through text-sm">₹{item.price}</p>
+                                    <p className="text-blue-600 font-semibold">
+                                        ₹{(item.price * (1 - item.discount / 100)).toFixed(2)} x {item.quantity} = ₹{(item.price * (1 - item.discount / 100) * item.quantity).toFixed(2)}
+                                    </p>
+                                    <p className="text-green-600 text-sm">{item.discount}% Off</p>
+                                </div>
+                            ) : (
+                                <p className="text-gray-600">₹{item.price} x {item.quantity} = ₹{item.price * item.quantity}</p>
+                            )}
                         </div>
                         <div className="flex items-center space-x-3">
                             <button

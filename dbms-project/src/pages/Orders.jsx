@@ -40,6 +40,7 @@ const Orders = () => {
                     order_id: row.order_id,
                     status: row.status,
                     location: row.location,
+                    discount: row.discount,
                     date: row.date,
                     total_price: 0,
                     items: [],
@@ -51,6 +52,7 @@ const Orders = () => {
                 name: row.name,
                 price: row.price,
                 image: row.image,
+                discount: row.discount,
                 quantity: row.quantity,
             });
             order.total_price += row.price * row.quantity;

@@ -17,6 +17,8 @@ import OrderSummary from "./components/OrderSummary";
 import AdminRequestsPage from "./pages/AdminReq";
 import AddProduct from "./pages/AddProduct";
 import ForgotPassword from "./pages/ForgotPassword";
+import AddDiscount from "./pages/AddDiscount";
+
 
 function App() {
   const [cart, setCart] = useState([]);
@@ -53,6 +55,7 @@ function App() {
         <Route path="/admin/requests" element={<AdminRequestsPage />} />
         <Route path="/add-product" element={<AddProduct />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/add-discount" element={<AddDiscount />} />
       </Routes>
     </Router>
   );

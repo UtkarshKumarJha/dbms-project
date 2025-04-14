@@ -86,7 +86,17 @@ const ProductDetails = ({ cart, setCart }) => {
                 <div className="flex flex-col w-full">
                     <h1 className="text-3xl font-bold">{product.name}</h1>
                     <p className="text-xl text-gray-700">Brand: {product.brand}</p>
-                    <p className="text-2xl font-bold text-blue-600 mt-4">₹{product.price}</p>
+                    {product.discount ? (
+                        <div className="mt-4">
+                            <p className="text-gray-500 line-through text-lg">₹{product.price}</p>
+                            <p className="text-2xl font-bold text-blue-600">
+                                ₹{(product.price * (1 - product.discount / 100)).toFixed(2)}
+                            </p>
+                            <p className="text-green-600 font-semibold">{product.discount}% Off</p>
+                        </div>
+                    ) : (
+                        <p className="text-2xl font-bold text-blue-600 mt-4">₹{product.price}</p>
+                    )}
 
                     {/* Product Details */}
                     <p className="mt-4 text-gray-600 whitespace-pre-line">{product.details}</p>

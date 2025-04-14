@@ -4,7 +4,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Autoplay } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
-import api from "../services/api"; // Import API service
+import api from "../services/api";
 
 const Home = () => {
     const [products, setProducts] = useState([]);
@@ -20,26 +20,29 @@ const Home = () => {
     }, []);
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-blue-950 to-gray-400 text-white p-10">
-
-            <div className="text-center mb-10">
-                <h1 className="text-4xl font-extrabold mb-3 drop-shadow-lg">Welcome to ShopEz</h1>
-                <p className="text-lg text-gray-200 max-w-lg mx-auto">
-                    Discover the best deals on tech accessories and gadgets. Quality products at unbeatable prices!
+        <div className="min-h-screen bg-gradient-to-b from-indigo-950 via-blue-900 to-blue-700 text-white px-4 py-12 flex flex-col items-center">
+            <div className="text-center mb-12">
+                <h1 className="text-5xl font-extrabold mb-4 drop-shadow-lg tracking-wide">
+                    Welcome to <span className="text-yellow-400">ShopEz</span>
+                </h1>
+                <p className="text-lg text-gray-300 max-w-xl mx-auto leading-relaxed">
+                    Discover top deals on gadgets and accessories. Quality guaranteed, prices unmatched.
                 </p>
-                <Link to="/products" className="mt-5 inline-block bg-white text-blue-600 px-6 py-3 rounded-full font-semibold text-lg shadow-md hover:bg-blue-100 transition">
+                <Link
+                    to="/products"
+                    className="mt-6 inline-block bg-yellow-400 text-indigo-900 px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:bg-yellow-300 transition duration-300"
+                >
                     View Products
                 </Link>
             </div>
 
-            {/* Swiper Card Slider */}
-            <div className="w-full max-w-5xl">
+            <div className="w-full max-w-6xl">
                 <Swiper
                     modules={[Navigation, Autoplay]}
-                    spaceBetween={20}
+                    spaceBetween={30}
                     slidesPerView={3}
                     navigation
-                    autoplay={{ delay: 2500 }}
+                    autoplay={{ delay: 3000 }}
                     loop={true}
                     breakpoints={{
                         640: { slidesPerView: 1 },
@@ -49,10 +52,14 @@ const Home = () => {
                 >
                     {products.map((product) => (
                         <SwiperSlide key={product.id}>
-                            <div className="p-4 border rounded-xl bg-white bg-opacity-20 backdrop-blur-lg shadow-lg flex flex-col items-center text-center">
-                                <img src={product.image} alt={product.name} className="w-40 h-40 object-cover rounded-lg mb-3" />
-                                <h2 className="text-lg font-semibold text-black">{product.name}</h2>
-                                <p className="text-gray-500">₹{product.price}</p>
+                            <div className="p-5 bg-white bg-opacity-20 backdrop-blur-md rounded-2xl shadow-2xl border border-white/30 transition-transform transform hover:scale-105">
+                                <img
+                                    src={product.image}
+                                    alt={product.name}
+                                    className="w-full h-60 object-cover rounded-xl mb-4 border border-white/20"
+                                />
+                                <h2 className="text-xl font-semibold text-black mb-1 truncate">{product.name}</h2>
+                                <p className="text-black-300 text-lg font-bold">₹{product.price}</p>
                             </div>
                         </SwiperSlide>
                     ))}

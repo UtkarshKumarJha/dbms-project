@@ -21,6 +21,7 @@ const Checkout = () => {
     const [stockMap, setStockMap] = useState({}); // product_id -> available stock
 
 
+
     const items = singleProduct
         ? [{ ...singleProduct, quantity }]
         : cart;
@@ -121,6 +122,17 @@ const Checkout = () => {
             console.error("Error placing order:", err.message);
         }
     };
+    const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+    const totalDiscount = items.reduce((acc, item) => {
+        if (item.discount) {
+            return acc + (item.price * item.discount / 100) * item.quantity;
+        }
+        return acc;
+    }, 0);
+
+    const totalAfterDiscount = subtotal - totalDiscount;
+
 
 
     return (
@@ -134,7 +146,16 @@ const Checkout = () => {
                             <img src={item.image} alt={item.product_name} className="w-16 h-16 object-cover rounded-lg" />
                             <div className="flex-1 ml-4">
                                 <h2 className="text-lg font-semibold">{item.product_name}</h2>
-                                <p className="text-gray-600">₹{item.price} x {item.quantity}</p>
+                                {item.discount ? (
+                                    <div className="text-gray-600">
+                                        <p className="text-blue-600 font-semibold">
+                                            ₹{(item.price * (1 - item.discount / 100)).toFixed(2)} x {item.quantity} = ₹{(item.price * (1 - item.discount / 100) * item.quantity).toFixed(2)}
+                                        </p>
+                                        <p className="text-green-600 text-sm">{item.discount}% Off</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-600">₹{item.price} x {item.quantity}</p>
+                                )}
                             </div>
 
                             {singleProduct ? (
@@ -184,6 +205,22 @@ const Checkout = () => {
                         required
                     />
                 </div>
+                <div className="mt-6 border-t pt-4">
+                    <h2 className="text-lg font-semibold mb-2">Order Summary</h2>
+                    <div className="flex justify-between text-gray-700">
+                        <span>Subtotal:</span>
+                        <span>₹{subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-700">
+                        <span>Total Discount:</span>
+                        <span className="text-green-600">- ₹{totalDiscount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-blue-800 text-lg mt-2">
+                        <span>Total Payable:</span>
+                        <span>₹{totalAfterDiscount.toFixed(2)}</span>
+                    </div>
+                </div>
+
 
                 <button
                     onClick={placeOrder}

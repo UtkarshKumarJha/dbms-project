@@ -200,6 +200,35 @@ app.post("/add-product", async (req, res) => {
     }
 });
 
+app.post("/add-discount", async (req, res) => {
+    const { product_id, discount } = req.body;
+
+    try {
+        const [check] = await db.query(
+            "SELECT * FROM discount WHERE product_id = ?",
+            [product_id]
+        );
+
+        if (check.length > 0) {
+            await db.query(
+                "UPDATE discount SET discount = ? WHERE product_id = ?",
+                [discount, product_id]
+            );
+        } else {
+            await db.query(
+                "INSERT INTO discount (product_id, discount) VALUES (?, ?)",
+                [product_id, discount]
+            );
+        }
+
+        res.status(200).json({ message: "Discount added/updated successfully" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to add discount" });
+    }
+});
+
+
 app.get("/checkbrand/:id", async (req, res) => {
     const userId = req.params.id;
     try {
@@ -314,9 +343,10 @@ app.post("/addtocart", async (req, res) => {
     try {
         // Check if product already exists in cart for the user
         const [existingItems] = await db.query(
-            "SELECT * FROM cart WHERE user_id = ? AND product_id = ?",
+            "SELECT * FROM cart natural join discount WHERE user_id = ? AND product_id = ?",
             [userId, product_id]
         );
+        console.log(existingItems);
 
         if (existingItems.length > 0) {
             const quantity2 = existingItems[0].quantity;
@@ -370,18 +400,14 @@ app.get('/products', async (req, res) => {
 app.get('/cart/:id', async (req, res) => {
     const id = req.params.id;
     const query = `
-        SELECT
-    cart_id,
-    user_id,
-    product_id,
-    quantity,
-    price,
-    added_at,
-    (SELECT name FROM product WHERE product_id = cart.product_id) AS product_name,
-    (SELECT image FROM product WHERE product_id = cart.product_id) AS product_image
-FROM cart
-WHERE user_id = ?;
-
+        SELECT 
+            cart.cart_id, cart.user_id, cart.product_id, cart.quantity, 
+            cart.price, discount.discount,cart.added_at, 
+            product.name AS product_name, product.image AS product_image
+        FROM cart 
+        INNER JOIN product ON cart.product_id = product.product_id
+        LEFT JOIN discount ON cart.product_id = discount.product_id
+        where cart.user_id = ?;
     `;
 
     try {
@@ -446,13 +472,11 @@ app.post("/create-order", async (req, res) => {
         location
     ]);
 
+    const reducequntity = 'UPDATE product SET quantity = quantity - ? WHERE product_id = ?';
     try {
         const [results] = await db.query(insertOrderSql, [orderValues]);
         for (const item of items) {
-            await db.query("CALL update_all_product_quantities(?, ?)", [
-                item.product_id,
-                item.quantity,
-            ]);
+            await db.query("UPDATE product SET quantity = quantity - ? WHERE product_id = ?", [item.quantity, item.product_id]);
         }
 
         res.status(201).json({ message: "Order created successfully", orderId: results.insertId });
@@ -477,12 +501,14 @@ app.get('/orders', async (req, res) => {
     orders.location,
     orders.quantity, 
     orders.status,
+    discount.discount,
     orders.date,
     product.image,
     product.price,
     product.name
 FROM orders
 JOIN product ON orders.product_id = product.product_id
+LEFT JOIN discount ON orders.product_id = discount.product_id
 WHERE orders.user_id = ?;
 
     `;
@@ -537,10 +563,11 @@ app.get('/products/:id', async (req, res) => {
 
     const query = `
         SELECT 
-            p.product_id, p.name, p.details, p.quantity,p.price, p.brand, p.image, 
+            p.product_id, p.name,d.discount, p.details, p.quantity,p.price, p.brand, p.image, 
             JSON_ARRAYAGG(c.name) AS categories
         FROM product p
         JOIN category c ON p.category_id = c.category_id
+        LEFT JOIN discount d ON p.product_id = d.product_id
         WHERE p.product_id = ?
         GROUP BY p.product_id
     `;
