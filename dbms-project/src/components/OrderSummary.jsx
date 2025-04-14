@@ -44,14 +44,14 @@ const OrderSummary = ({ order }) => {
             const response = await api.put(`/orders/${order.order_id}/cancel`, { reason });
 
             if (response.status === 200) {
-                alert("Order cancelled successfully.");
-                window.location.reload();
+                toast.success("Order cancelled successfully.");
+                setTimeout(() => window.location.reload(), 2000); // wait before reload to show toast
             } else {
-                alert("Failed to cancel order. Try again later.");
+                toast.error("Failed to cancel order. Try again later.");
             }
         } catch (error) {
             console.error(error);
-            alert("An error occurred while cancelling the order.");
+            toast.error("An error occurred while cancelling the order.");
         }
     };
 

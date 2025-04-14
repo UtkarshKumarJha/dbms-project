@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from "react";
 import api from "../services/api";
-import OrderSummary from "../components/OrderSummary"; // ✅ Import the reusable component
+import OrderSummary from "../components/OrderSummary";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 
 const Orders = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const userId = localStorage.getItem("userId");
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (!userId) {
-            setError("User not logged in");
+            toast.error("You are not logged in");
             setLoading(false);
+            navigate("/login");
             return;
         }
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import React from "react";
 import api from "../services/api";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 
 const Cart = () => {
     const [cart, setCart] = useState([]);
@@ -9,6 +10,11 @@ const Cart = () => {
     const userId = localStorage.getItem("userId");
 
     useEffect(() => {
+        if (!userId) {
+            toast.error("You are not logged in");
+            navigate("/login");
+            return;
+        }
         fetchCart();
     }, []);
 

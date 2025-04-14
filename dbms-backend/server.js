@@ -128,7 +128,7 @@ app.post("/reject-request/:request_id", async (req, res) => {
     const request_id = req.params.request_id;
 
     try {
-        await db.query("DELETE * FROM requests WHERE request_id = ?", [request_id]);
+        await db.query("DELETE FROM requests WHERE request_id = ?", [request_id]);
     } catch (err) {
         console.error("Approve Seller Error:", err);
         res.status(500).json({ message: "Internal Server Error" });
@@ -177,7 +177,8 @@ app.post("/add-product", async (req, res) => {
 
         let category_id;
         if (catRows.length > 0) {
-            category_id = catRows[0].id;
+            console.log(catRows);
+            category_id = catRows[0].category_id;
         } else {
             const [insertResult] = await db.query("INSERT INTO category (name) VALUES (?)", [category]);
             category_id = insertResult.insertId;
@@ -246,12 +247,13 @@ app.post("/login", async (req, res) => {
 
 // Get all users
 app.get('/users', async (req, res) => {
-    await db.query('SELECT * FROM users', (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
+    try {
+        const [results] = await db.query('SELECT * FROM user');
         res.json(results);
-    });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+
 });
 
 app.get("/profile/:userId", async (req, res) => {
@@ -368,13 +370,18 @@ app.get('/products', async (req, res) => {
 app.get('/cart/:id', async (req, res) => {
     const id = req.params.id;
     const query = `
-        SELECT 
-            cart.cart_id, cart.user_id, cart.product_id, cart.quantity, 
-            cart.price, cart.added_at, 
-            product.name AS product_name, product.image AS product_image
-        FROM cart 
-        INNER JOIN product ON cart.product_id = product.product_id
-        where cart.user_id = ?;
+        SELECT
+    cart_id,
+    user_id,
+    product_id,
+    quantity,
+    price,
+    added_at,
+    (SELECT name FROM product WHERE product_id = cart.product_id) AS product_name,
+    (SELECT image FROM product WHERE product_id = cart.product_id) AS product_image
+FROM cart
+WHERE user_id = ?;
+
     `;
 
     try {
@@ -439,10 +446,15 @@ app.post("/create-order", async (req, res) => {
         location
     ]);
 
-    const reducequntity = 'UPDATE product SET quantity = quantity - ? WHERE product_id = ?';
     try {
         const [results] = await db.query(insertOrderSql, [orderValues]);
-        const [results2] = await db.query(reducequntity, [items[0].quantity, items[0].product_id]);
+        for (const item of items) {
+            await db.query("CALL update_all_product_quantities(?, ?)", [
+                item.product_id,
+                item.quantity,
+            ]);
+        }
+
         res.status(201).json({ message: "Order created successfully", orderId: results.insertId });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -507,18 +519,11 @@ app.put('/orders/:orderId/cancel', async (req, res) => {
     const { reason } = req.body;
 
     try {
-        const [result] = await db.query(
+        await db.query(
             "UPDATE orders SET status = 'Cancelled', cancel_reason = ? WHERE order_id = ?",
             [reason, orderId]
         );
-        const [Result] = await db.query(
-            'SELECT quantity FROM orders WHERE order_id = ?',
-            [orderId]);
-        const quantityResult = Result[0].quantity;
-        const [result2] = await db.query(
-            "UPDATE product SET quantity = quantity + ? WHERE product_id = (SELECT product_id FROM  orders WHERE order_id = ?)",
-            [quantityResult, orderId]);
-        res.status(200).json({ message: "Order cancelled" });
+        res.status(200).json({ message: "Order cancelled and handled via trigger" });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Failed to cancel order" });
