@@ -7,6 +7,7 @@ const Signup = () => {
         name: "",
         email: "",
         password: "",
+
         phone_no: "",
         b_name: "",
         b_description: ""
@@ -57,50 +58,26 @@ const Signup = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-indigo-900 to-gray-700 p-8">
-            <form onSubmit={handleSubmit} className="bg-gradient-to-t from-gray-800 to-gray-900 p-8 rounded-xl shadow-lg w-96">
-                <h2 className="text-3xl font-bold text-white text-center mb-6">Sign Up</h2>
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-md w-96">
+                <h2 className="text-2xl font-bold text-center mb-4">Sign Up</h2>
 
                 {error && <p className="text-red-500 text-center">{error}</p>}
 
-                <input
-                    type="text"
-                    name="name"
-                    placeholder="Full Name"
-                    required
-                    className="w-full p-3 border-2 border-gray-600 rounded-lg mt-3 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    onChange={handleChange}
-                />
+                <input type="text" name="name" placeholder="Full Name" required
+                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
 
-                <input
-                    type="email"
-                    name="email"
-                    placeholder="Email"
-                    required
-                    className="w-full p-3 border-2 border-gray-600 rounded-lg mt-3 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    onChange={handleChange}
-                />
+                <input type="email" name="email" placeholder="Email" required
+                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
 
-                <input
-                    type="password"
-                    name="password"
-                    placeholder="Password"
-                    required
-                    className="w-full p-3 border-2 border-gray-600 rounded-lg mt-3 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    onChange={handleChange}
-                />
+                <input type="password" name="password" placeholder="Password" required
+                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
 
-                <input
-                    type="tel"
-                    name="phone_no"
-                    placeholder="Phone Number"
-                    required
-                    className="w-full p-3 border-2 border-gray-600 rounded-lg mt-3 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    onChange={handleChange}
-                />
+                <input type="tel" name="phone_no" placeholder="Phone Number" required
+                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
 
                 {/* Seller toggle */}
-                <label className="flex items-center mt-4 text-white">
+                <label className="flex items-center mt-3">
                     <input
                         type="checkbox"
                         checked={isSeller}
@@ -117,24 +94,20 @@ const Signup = () => {
                             name="b_name"
                             placeholder="Business Name"
                             required
-                            className="w-full p-3 border-2 border-gray-600 rounded-lg mt-3 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full p-2 border rounded mt-2"
                             onChange={handleChange}
                         />
-
                         <textarea
                             name="b_description"
                             placeholder="Business Description"
                             required
-                            className="w-full p-3 border-2 border-gray-600 rounded-lg mt-3 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full p-2 border rounded mt-2"
                             onChange={handleChange}
                         />
                     </>
                 )}
 
-                <button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white py-3 rounded-lg mt-6 hover:bg-gradient-to-r hover:from-teal-600 hover:to-teal-700 transition duration-300"
-                >
+                <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded mt-4 hover:bg-blue-700">
                     Sign Up
                 </button>
             </form>
