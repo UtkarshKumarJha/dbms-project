@@ -1,97 +1,96 @@
-import { useState, useEffect } from "react";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import api from "../services/api";
-import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 
-const Cart = () => {
-    const [cart, setCart] = useState([]);
-    const navigate = useNavigate();
-    const userId = localStorage.getItem("userId");
+const AdminRequestsPage = () => {
+    const [requests, setRequests] = useState([]);
+    const [error, setError] = useState("");
 
     useEffect(() => {
-        if (!userId) {
-            toast.error("You are not logged in");
-            navigate("/login");
-            return;
-        }
-        fetchCart();
+        fetchRequests();
     }, []);
 
-    const fetchCart = () => {
-        api.get(`/cart/${userId}`)
-            .then(response => setCart(response.data))
-            .catch(error => console.error("Error fetching cart items:", error));
-    };
-
-    const updateQuantity = (cart_id, newQuantity) => {
-        if (newQuantity < 1) {
-            removeFromCart(cart_id); // If quantity is 0, remove item
-            return;
+    const fetchRequests = async () => {
+        try {
+            const response = await api.get("/pending-requests");
+            setRequests(response.data);
+        } catch (err) {
+            setError("Failed to fetch requests");
         }
-
-        // Optimistically update UI
-        setCart(cart.map(item =>
-            item.cart_id === cart_id ? { ...item, quantity: newQuantity } : item
-        ));
-
-        // Send update request to backend
-        api.put("/cart/update", { cart_id, quantity: newQuantity })
-            .then(fetchCart) // Refresh cart after update
-            .catch(error => console.error("Error updating quantity:", error));
     };
 
-    const removeFromCart = (cart_id) => {
-        api.delete(`/cart/remove/${cart_id}`)
-            .then(() => fetchCart()) // Refresh cart after deletion
-            .catch(error => console.error("Error removing item from cart:", error));
+    const approveRequest = async (request) => {
+        try {
+            await api.post(`/approve-seller/${request.request_id}`, {
+                user_id: request.user_id
+            });
+            fetchRequests(); // Refresh
+        } catch (err) {
+            console.error("Approval failed", err);
+        }
     };
 
-    const placeOrder = () => {
-        if (cart.length === 0) return;
-
-        navigate("/checkout", {
-            state: { cart }
-        });
+    const rejectRequest = async (request_id) => {
+        try {
+            await api.delete(`/reject-request/${request_id}`);
+            fetchRequests(); // Refresh
+        } catch (err) {
+            console.error("Rejection failed", err);
+        }
     };
 
     return (
-        <div className="p-10 m-10 max-w-lg mx-auto bg-gradient-to-b from-blue-950 to-gray-400 rounded-lg shadow-lg">
-            <h1 className="text-3xl font-bold mb-6 text-center text-white">Your Cart</h1>
-            {cart.length > 0 ? (
-                cart.map(item => (
-                    <div key={item.cart_id} className="flex items-center justify-between border border-gray-300 p-4 rounded-lg shadow-md bg-white mb-3">
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-800">{item.product_name}</h2>
-                            <p className="text-gray-600">₹{item.price} x {item.quantity} = ₹{item.price * item.quantity}</p>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                            <button
-                                className="px-3 py-1 rounded-md bg-red-500 hover:bg-red-600 text-white font-semibold transition duration-200"
-                                onClick={() => updateQuantity(item.cart_id, item.quantity - 1)}
-                            >-</button>
-                            <span className="w-6 text-center font-bold text-gray-800">{item.quantity}</span>
-                            <button
-                                className="px-3 py-1 rounded-md bg-green-500 hover:bg-green-600 text-white font-semibold transition duration-200"
-                                onClick={() => updateQuantity(item.cart_id, item.quantity + 1)}
-                            >+</button>
-                        </div>
-                    </div>
-                ))
-            ) : (
-                <p className="text-center text-white text-lg">Your cart is empty.</p>
-            )}
+        <div className="min-h-screen bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white px-6 py-10">
+            <div className="text-center mb-12">
+                <h1 className="text-4xl font-extrabold mb-3 drop-shadow">Pending Seller Requests</h1>
+                <p className="text-gray-400">Review and take action on new seller onboarding requests</p>
+                {/* 3D illustration placeholder */}
+                <div className="flex justify-center mt-6">
+                    <img
+                        src="https://cdn.jsdelivr.net/gh/rajat2502/hosted-assets@main/admin-3d.png"
+                        alt="3D Admin Illustration"
+                        className="w-56 h-56 object-contain drop-shadow-lg animate-pulse"
+                    />
+                </div>
+            </div>
 
-            {cart.length > 0 && (
-                <button
-                    onClick={placeOrder}
-                    className="mt-4 w-full bg-green-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-green-700 transition"
-                >
-                    Buy Now
-                </button>
+            {error && <p className="text-red-400 mb-4 text-center">{error}</p>}
+
+            {requests.length === 0 ? (
+                <p className="text-center text-gray-400">No pending requests.</p>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {requests.map((req) => (
+                        <div
+                            key={req.request_id}
+                            className="bg-gray-800/60 backdrop-blur-md border border-gray-700 p-6 rounded-xl shadow-lg hover:shadow-2xl transition-all"
+                        >
+                            <div className="space-y-2">
+                                <p><span className="text-gray-400 font-medium">User ID:</span> {req.user_id}</p>
+                                <p><span className="text-gray-400 font-medium">Business Name:</span> {req.b_name}</p>
+                                <p><span className="text-gray-400 font-medium">Description:</span> {req.b_description}</p>
+                                <p><span className="text-gray-400 font-medium">Submitted At:</span> {new Date(req.submitted_at).toLocaleString()}</p>
+                            </div>
+
+                            <div className="flex gap-4 mt-5 justify-end">
+                                <button
+                                    onClick={() => approveRequest(req)}
+                                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-md transition duration-200"
+                                >
+                                    Approve
+                                </button>
+                                <button
+                                    onClick={() => rejectRequest(req.request_id)}
+                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-md transition duration-200"
+                                >
+                                    Reject
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             )}
         </div>
     );
 };
 
-export default Cart;
+export default AdminRequestsPage;

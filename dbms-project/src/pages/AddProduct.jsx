@@ -33,7 +33,7 @@ const AddProduct = () => {
                 name: formData.name,
                 price: formData.price,
                 details: formData.description,
-                category: formData.category, // Send as string
+                category: formData.category,
                 brand: (await api.get(`/checkbrand/${userId}`)).data.brand,
                 image: formData.image,
                 quantity: formData.quantity
@@ -55,13 +55,12 @@ const AddProduct = () => {
         }
     };
 
-
     return (
-        <div className="max-w-xl mx-auto mt-10 bg-white shadow-md rounded-lg p-6">
-            <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Add a New Product</h2>
+        <div className="max-w-xl mx-auto mt-10 bg-gradient-to-br from-gray-900 to-gray-800 shadow-2xl rounded-xl p-8 text-white">
+            <h2 className="text-3xl font-bold mb-6 text-center text-white">Add a New Product</h2>
 
             {message && (
-                <div className="mb-4 text-sm text-center text-white bg-green-500 px-4 py-2 rounded">
+                <div className="mb-4 text-sm text-center text-black bg-green-300 px-4 py-2 rounded">
                     {message}
                 </div>
             )}
@@ -74,7 +73,7 @@ const AddProduct = () => {
                     value={formData.name}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <input
@@ -84,7 +83,7 @@ const AddProduct = () => {
                     value={formData.price}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <textarea
@@ -94,7 +93,7 @@ const AddProduct = () => {
                     onChange={handleChange}
                     required
                     rows={4}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <input
@@ -104,8 +103,9 @@ const AddProduct = () => {
                     value={formData.category}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+
                 <input
                     type="number"
                     name="quantity"
@@ -114,7 +114,7 @@ const AddProduct = () => {
                     onChange={handleChange}
                     min="1"
                     required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <input
@@ -124,7 +124,7 @@ const AddProduct = () => {
                     value={formData.image}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <button

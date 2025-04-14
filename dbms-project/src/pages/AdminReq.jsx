@@ -39,32 +39,35 @@ const AdminRequestsPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 p-8">
-            <h1 className="text-3xl font-bold mb-6">Pending Seller Requests</h1>
+        <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white p-8">
+            <h1 className="text-3xl font-extrabold mb-6 text-center">Pending Seller Requests</h1>
 
-            {error && <p className="text-red-500 mb-4">{error}</p>}
+            {error && <p className="text-red-400 mb-4 text-center">{error}</p>}
 
             {requests.length === 0 ? (
-                <p>No pending requests.</p>
+                <p className="text-center text-gray-300">No pending requests.</p>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {requests.map((req) => (
-                        <div key={req.request_id} className="bg-white p-6 rounded shadow">
-                            <p><strong>User ID:</strong> {req.user_id}</p>
-                            <p><strong>Business Name:</strong> {req.b_name}</p>
-                            <p><strong>Description:</strong> {req.b_description}</p>
-                            <p><strong>Submitted At:</strong> {new Date(req.submitted_at).toLocaleString()}</p>
+                        <div
+                            key={req.request_id}
+                            className="bg-gray-800 bg-opacity-60 backdrop-blur-md p-6 rounded-xl shadow-xl border border-gray-700 transition hover:shadow-2xl"
+                        >
+                            <p><span className="text-gray-400 font-medium">User ID:</span> {req.user_id}</p>
+                            <p><span className="text-gray-400 font-medium">Business Name:</span> {req.b_name}</p>
+                            <p><span className="text-gray-400 font-medium">Description:</span> {req.b_description}</p>
+                            <p><span className="text-gray-400 font-medium">Submitted At:</span> {new Date(req.submitted_at).toLocaleString()}</p>
 
-                            <div className="flex gap-4 mt-4">
+                            <div className="flex gap-4 mt-4 justify-end">
                                 <button
                                     onClick={() => approveRequest(req)}
-                                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-md transition"
                                 >
                                     Approve
                                 </button>
                                 <button
                                     onClick={() => rejectRequest(req.request_id)}
-                                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-md transition"
                                 >
                                     Reject
                                 </button>

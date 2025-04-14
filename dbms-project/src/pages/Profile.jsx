@@ -33,12 +33,12 @@ const Profile = () => {
     if (error) return <div className="text-center text-lg p-10 text-red-500">{error}</div>;
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-blue-950 to-gray-400">
-            <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full flex flex-col items-center">
-                <h1 className="text-2xl font-bold text-gray-800 mb-6">Profile</h1>
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-indigo-900 to-gray-800 p-8">
+            <div className="bg-gradient-to-t from-gray-700 to-gray-900 rounded-xl shadow-2xl p-8 max-w-md w-full flex flex-col items-center">
+                <h1 className="text-3xl font-bold text-white mb-6 drop-shadow-lg">Profile</h1>
 
                 {/* Circular Profile Picture */}
-                <div className="w-32 h-32 mb-6 rounded-full overflow-hidden border-4 border-blue-500 bg-gray-200 flex items-center justify-center text-2xl text-white font-semibold">
+                <div className="w-36 h-36 mb-6 rounded-full overflow-hidden border-4 border-teal-500 bg-gray-300 flex items-center justify-center text-3xl text-white font-semibold">
                     {profile.profile_picture ? (
                         <img
                             src={profile.profile_picture}
@@ -46,26 +46,24 @@ const Profile = () => {
                             className="w-full h-full object-cover"
                         />
                     ) : (
-                        <span>
-                            {profile.name?.charAt(0).toUpperCase() || "?"}
-                        </span>
+                        <span>{profile.name?.charAt(0).toUpperCase() || "?"}</span>
                     )}
                 </div>
 
                 <div className="mb-4 w-full">
-                    <p className="text-gray-700"><strong>Name:</strong> {profile.name}</p>
+                    <p className="text-lg text-gray-200"><strong>Name:</strong> {profile.name}</p>
                 </div>
                 <div className="mb-4 w-full">
-                    <p className="text-gray-700"><strong>Email:</strong> {profile.email}</p>
+                    <p className="text-lg text-gray-200"><strong>Email:</strong> {profile.email}</p>
                 </div>
                 <div className="mb-4 w-full">
-                    <p className="text-gray-700"><strong>Phone:</strong> {profile.phone_no}</p>
+                    <p className="text-lg text-gray-200"><strong>Phone:</strong> {profile.phone_no}</p>
                 </div>
 
                 {/* Logout Button */}
                 <button
                     onClick={handleLogout}
-                    className="mt-6 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">
+                    className="mt-6 w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition-all ease-in-out duration-300 transform hover:scale-105">
                     Logout
                 </button>
             </div>
