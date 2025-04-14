@@ -1,6 +1,8 @@
-import React from "react";
-import { useState } from "react";
+import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { ToastContainer } from "react-toastify"; // ✅ Toast import
+import "react-toastify/dist/ReactToastify.css";  // ✅ Toast CSS import
+
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import ProductPage from "./pages/ProductPage";
@@ -17,12 +19,26 @@ import AddProduct from "./pages/AddProduct";
 import ForgotPassword from "./pages/ForgotPassword";
 
 function App() {
-
   const [cart, setCart] = useState([]);
 
   return (
     <Router>
       <Navbar />
+
+      {/* ✅ Toast container (place outside Routes but inside Router) */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
+      />
+
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/products" element={<ProductPage />} />

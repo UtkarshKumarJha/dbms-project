@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
-import ReviewSection from "./ReviewSection"; // ✅ Import Review Component
+import ReviewSection from "./ReviewSection";
+import { toast } from "react-toastify";
+
 
 const ProductDetails = ({ cart, setCart }) => {
     const { id } = useParams();
@@ -29,8 +31,14 @@ const ProductDetails = ({ cart, setCart }) => {
     if (!product) return <div className="text-center p-10">Product not found</div>;
 
     const addToCart = async () => {
+        const userId = localStorage.getItem("userId");
+
+        if (!userId) {
+            toast.warn("Please login to add items to your cart.");
+            return navigate("/login");
+        }
+
         try {
-            const userId = localStorage.getItem("userId");
             await api.post("/addtocart", {
                 userId,
                 product_id: product.product_id,
@@ -42,16 +50,27 @@ const ProductDetails = ({ cart, setCart }) => {
             navigate(`/cart/${userId}`);
         } catch (err) {
             console.error("Error adding to cart:", err.message);
+            toast.error("Something went wrong while adding to cart.");
         }
     };
 
+
+
     const buyNow = () => {
+        const userId = localStorage.getItem("userId");
+
+        if (!userId) {
+            toast.warn("Please login to proceed to checkout.");
+            return navigate("/login");
+        }
+
         navigate("/checkout", {
             state: {
                 product: { ...product, quantity: selectedQuantity }
             }
         });
     };
+
 
     const handleQuantityChange = (newQuantity) => {
         if (newQuantity >= 1 && newQuantity <= availableStock) {

@@ -11,14 +11,14 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 app.post("/signup", async (req, res) => {
-    const { name, email, password, location, phone_no } = req.body;
+    const { name, email, password, phone_no } = req.body;
 
-    if (!name || !email || !password || !location || !phone_no) {
+    if (!name || !email || !password || !phone_no) {
         return res.status(400).json({ message: "All fields are required!" });
     }
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const [rows] = await db.query("INSERT INTO user (name, email, pass, location, phone_no) VALUES (?, ?, ?, ?, ?)", [name, email, hashedPassword, location, phone_no]);
+        const [rows] = await db.query("INSERT INTO user (name, email, pass, phone_no) VALUES (?, ?, ?, ?)", [name, email, hashedPassword, phone_no]);
         if (rows.length > 0) {
             res.json({ message: "User created successfully!" });
         } else {
@@ -153,14 +153,14 @@ app.post("/add-product", async (req, res) => {
         name,
         details,
         price,
-        category_id,
+        category,
         brand,
         quantity,
         image
     } = req.body;
 
     try {
-        // Check if user is a verified seller
+        // 1. Check if user is a verified seller
         const [sellerRows] = await db.query(
             "SELECT seller_id FROM seller WHERE user_id = ? AND is_verified = TRUE",
             [user_id]
@@ -172,7 +172,18 @@ app.post("/add-product", async (req, res) => {
 
         const seller_id = sellerRows[0].seller_id;
 
-        // Insert product
+        // 2. Check or create category
+        const [catRows] = await db.query("SELECT category_id FROM category WHERE name = ?", [category]);
+
+        let category_id;
+        if (catRows.length > 0) {
+            category_id = catRows[0].id;
+        } else {
+            const [insertResult] = await db.query("INSERT INTO category (name) VALUES (?)", [category]);
+            category_id = insertResult.insertId;
+        }
+
+        // 3. Insert product
         await db.query(
             `INSERT INTO product 
             (name, details, price, category_id, brand, quantity, image)
@@ -232,27 +243,6 @@ app.post("/login", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-app.get("/categories", async (req, res) => {
-    try {
-        const category = req.query.category;
-        const sql = "SELECT * FROM category WHERE name = ?";
-        const sql2 = "INSERT INTO category (name) VALUES (?)";
-
-        const [rows] = await db.query(sql, [category]);
-
-        if (rows.length === 0) {
-            const [insertResult] = await db.query(sql2, [category]);
-            return res.status(200).json({ message: "Category created!", category_id: insertResult.insertId });
-        }
-
-        res.status(200).json({ message: "Category already exists", category_id: rows[0].id });
-    } catch (err) {
-        console.error("Category fetch error:", err);
-        res.status(500).json({ message: "Internal server error" });
-    }
-});
-
 
 // Get all users
 app.get('/users', async (req, res) => {
@@ -327,6 +317,21 @@ app.post("/addtocart", async (req, res) => {
         );
 
         if (existingItems.length > 0) {
+            const quantity2 = existingItems[0].quantity;
+            // Check if quantity is greater than available stock
+            const [product] = await db.query("SELECT quantity FROM product WHERE product_id = ?", [product_id]);
+            if (product.length === 0) {
+                return res.status(404).json({ error: "Product not found" });
+            }
+            const availableStock = product[0].quantity;
+            if (quantity + quantity2 > availableStock) {
+                return res.status(400).json({ error: "Quantity exceeds available stock" });
+            }
+            console.log("Product exists in cart, updating quantity...");
+            console.log("Existing quantity:", quantity2);
+            console.log("New quantity:", quantity + quantity2);
+            console.log("Available stock:", availableStock);
+
             // Product exists, update quantity
             await db.query(
                 "UPDATE cart SET quantity = quantity + ? WHERE user_id = ? AND product_id = ?",

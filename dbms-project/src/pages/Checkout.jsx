@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import api from "../services/api";
 import DeliveryMap from "../components/DeliveryMaps";
+import { toast } from 'react-toastify';
+
 
 const Checkout = () => {
     const locationState = useLocation();
@@ -16,6 +18,8 @@ const Checkout = () => {
     const [buildingName, setBuildingName] = useState(""); // Store building name
     const [quantity, setQuantity] = useState(singleProduct ? 1 : null);
     const [availableStock, setAvailableStock] = useState(0);
+    const [stockMap, setStockMap] = useState({}); // product_id -> available stock
+
 
     const items = singleProduct
         ? [{ ...singleProduct, quantity }]
@@ -23,6 +27,30 @@ const Checkout = () => {
 
     if (items.length === 0)
         return <div className="text-center p-10">Your cart is empty.</div>;
+
+    useEffect(() => {
+        const fetchStock = async () => {
+            try {
+                if (singleProduct) {
+                    const res = await api.get(`/products/${singleProduct.product_id}`);
+                    setAvailableStock(res.data.quantity);
+                } else if (cart.length > 0) {
+                    const newStockMap = {};
+                    for (let item of cart) {
+                        const res = await api.get(`/products/${item.product_id}`);
+                        newStockMap[item.product_id] = res.data.quantity;
+                        console.log("Stock for product", item.product_id, ":", res.data.quantity);
+                    }
+                    setStockMap(newStockMap);
+                }
+            } catch (err) {
+                console.error("Error fetching stock data:", err);
+            }
+        };
+
+        fetchStock();
+    }, [singleProduct, cart]);
+
 
     // 🔁 Fetch address from lat/lng
     const handleLocationSelect = async (latlng) => {
@@ -53,13 +81,29 @@ const Checkout = () => {
             const userId = localStorage.getItem("userId");
 
             if (!address || !buildingName) {
-                alert("Please select your delivery location on the map and enter the building name.");
+                toast.error("Please select your delivery location and enter the building name.");
                 return;
             }
-            if (item.quantity > availableStock) {
-                alert("Quantity exceeds available stock.");
-                return;
+
+            if (singleProduct) {
+                if (quantity > availableStock) {
+                    toast.error(`Only ${availableStock} item(s) available in stock.`);
+                    return;
+                }
+            } else {
+                const outOfStockItems = items.filter(
+                    (item) => item.quantity > (stockMap[item.product_id] || 0)
+                );
+
+                if (outOfStockItems.length > 0) {
+                    const itemNames = outOfStockItems
+                        .map(item => `${item.product_name} (max: ${stockMap[item.product_id] || 0})`)
+                        .join(", ");
+                    toast.error(`Some items exceed available stock: ${itemNames}`);
+                    return;
+                }
             }
+
 
             const orderData = {
                 userId,
@@ -68,7 +112,7 @@ const Checkout = () => {
                     quantity: item.quantity,
                     price: item.price
                 })),
-                location: `${buildingName},${address}` // Combined address and building name
+                location: `${buildingName},${address}`
             };
 
             await api.post("/create-order", orderData);
@@ -77,6 +121,7 @@ const Checkout = () => {
             console.error("Error placing order:", err.message);
         }
     };
+
 
     return (
         <div className="min-h-screen flex flex-col items-center bg-gray-50 py-10">

@@ -7,7 +7,7 @@ const Signup = () => {
         name: "",
         email: "",
         password: "",
-        location: "",
+
         phone_no: "",
         b_name: "",
         b_description: ""
@@ -71,9 +71,6 @@ const Signup = () => {
                     className="w-full p-2 border rounded mt-2" onChange={handleChange} />
 
                 <input type="password" name="password" placeholder="Password" required
-                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
-
-                <input type="text" name="location" placeholder="Location" required
                     className="w-full p-2 border rounded mt-2" onChange={handleChange} />
 
                 <input type="tel" name="phone_no" placeholder="Phone Number" required

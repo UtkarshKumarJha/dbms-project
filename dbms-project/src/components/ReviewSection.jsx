@@ -64,7 +64,7 @@ const ReviewSection = ({ productId }) => {
                     onChange={(e) => setRating(Number(e.target.value))}
                     className="border border-gray-300 p-2 rounded-md w-full"
                 >
-                    {[5, 4, 3, 2, 1, 0].map((star) => (
+                    {[5, 4, 3, 2, 1].map((star) => (
                         <option key={star} value={star}>
                             {star > 0 ? `${star} ⭐` : 'No rating'}
                         </option>

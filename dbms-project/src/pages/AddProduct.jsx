@@ -27,19 +27,14 @@ const AddProduct = () => {
 
         try {
             const userId = localStorage.getItem('userId');
-            console.log(formData.category);
-            const res = await api.get(`/categories?category=${formData.category}`);
-            console.log(res.data);
-            const category_id = res.data.category_id || res.data[0]?.id;
-            const brand = await api.get(`/checkbrand/${userId}`);
 
             const payload = {
-                user_id: localStorage.getItem('userId'),
+                user_id: userId,
                 name: formData.name,
                 price: formData.price,
                 details: formData.description,
-                category_id: category_id,
-                brand: brand.data.brand,
+                category: formData.category, // Send as string
+                brand: (await api.get(`/checkbrand/${userId}`)).data.brand,
                 image: formData.image,
                 quantity: formData.quantity
             };
@@ -59,6 +54,7 @@ const AddProduct = () => {
             setMessage(error.response?.data?.message || "Error adding product.");
         }
     };
+
 
     return (
         <div className="max-w-xl mx-auto mt-10 bg-white shadow-md rounded-lg p-6">
