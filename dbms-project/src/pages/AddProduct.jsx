@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import api from '../services/api';
 
 const AddProduct = () => {
@@ -8,7 +9,6 @@ const AddProduct = () => {
         description: '',
         category: '',
         image: '',
-        brand: '',
         quantity: 1,
     });
 
@@ -33,7 +33,7 @@ const AddProduct = () => {
                 name: formData.name,
                 price: formData.price,
                 details: formData.description,
-                category: formData.category, // Send as string
+                category: formData.category,
                 brand: (await api.get(`/checkbrand/${userId}`)).data.brand,
                 image: formData.image,
                 quantity: formData.quantity
@@ -55,85 +55,68 @@ const AddProduct = () => {
         }
     };
 
-
     return (
-        <div className="max-w-xl mx-auto mt-10 bg-white shadow-md rounded-lg p-6">
-            <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Add a New Product</h2>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black p-6">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                whileHover={{ scale: 1.01 }}
+                className="w-full max-w-xl p-8 rounded-2xl bg-gray-800 bg-opacity-70 backdrop-blur-lg shadow-2xl border border-gray-700"
+            >
+                <h2 className="text-3xl font-bold text-white mb-6 text-center">🛍️ Add a New Product</h2>
 
-            {message && (
-                <div className="mb-4 text-sm text-center text-white bg-green-500 px-4 py-2 rounded">
-                    {message}
-                </div>
-            )}
+                {message && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="mb-6 text-sm text-center text-white bg-green-600 px-4 py-2 rounded-lg shadow"
+                    >
+                        {message}
+                    </motion.div>
+                )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <input
-                    type="text"
-                    name="name"
-                    placeholder="Product Name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    {[
+                        { name: 'name', type: 'text', placeholder: 'Product Name' },
+                        { name: 'price', type: 'number', placeholder: 'Price' },
+                        { name: 'category', type: 'text', placeholder: 'Category' },
+                        { name: 'quantity', type: 'number', placeholder: 'Quantity', min: 1 },
+                        { name: 'image', type: 'text', placeholder: 'Image URL' },
+                    ].map((field, idx) => (
+                        <input
+                            key={idx}
+                            type={field.type}
+                            name={field.name}
+                            placeholder={field.placeholder}
+                            value={formData[field.name]}
+                            min={field.min || undefined}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                        />
+                    ))}
 
-                <input
-                    type="number"
-                    name="price"
-                    placeholder="Price"
-                    value={formData.price}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
+                    <textarea
+                        name="description"
+                        placeholder="Description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        rows={4}
+                        required
+                        className="w-full px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                    />
 
-                <textarea
-                    name="description"
-                    placeholder="Description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    required
-                    rows={4}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-
-                <input
-                    type="text"
-                    name="category"
-                    placeholder="Category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-                <input
-                    type="number"
-                    name="quantity"
-                    placeholder="Quantity"
-                    value={formData.quantity}
-                    onChange={handleChange}
-                    min="1"
-                    required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-
-                <input
-                    type="text"
-                    name="image"
-                    placeholder="Image URL"
-                    value={formData.image}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-
-                <button
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition duration-200"
-                >
-                    Add Product
-                </button>
-            </form>
+                    <motion.button
+                        type="submit"
+                        whileTap={{ scale: 0.95 }}
+                        whileHover={{ scale: 1.05 }}
+                        className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg transition duration-300"
+                    >
+                        🚀 Add Product
+                    </motion.button>
+                </form>
+            </motion.div>
         </div>
     );
 };

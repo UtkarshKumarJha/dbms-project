@@ -138,7 +138,7 @@ app.post("/reject-request/:request_id", async (req, res) => {
 // Get All Pending Seller Requests
 app.get("/pending-requests", async (req, res) => {
     try {
-        const [requests] = await db.query("SELECT * FROM requests");
+        const [requests] = await db.query("SELECT * FROM (SELECT * FROM requests) AS req JOIN user AS u ON req.user_id = u.user_id; ");
         res.status(200).json(requests);
     } catch (err) {
         console.error("Fetch Requests Error:", err);
@@ -343,9 +343,13 @@ app.post("/addtocart", async (req, res) => {
     try {
         // Check if product already exists in cart for the user
         const [existingItems] = await db.query(
-            "SELECT * FROM cart natural join discount WHERE user_id = ? AND product_id = ?",
+            `SELECT c.*, d.discount 
+     FROM cart c 
+     LEFT JOIN discount d ON c.product_id = d.product_id 
+     WHERE c.user_id = ? AND c.product_id = ?`,
             [userId, product_id]
         );
+
         console.log(existingItems);
 
         if (existingItems.length > 0) {

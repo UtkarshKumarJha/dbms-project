@@ -33,12 +33,12 @@ const Profile = () => {
     if (error) return <div className="text-center text-lg p-10 text-red-500">{error}</div>;
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-blue-950 to-gray-400">
-            <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full flex flex-col items-center">
-                <h1 className="text-2xl font-bold text-gray-800 mb-6">Profile</h1>
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-800 to-gray-600">
+            <div className="bg-gray-900 text-white rounded-2xl shadow-2xl p-8 max-w-md w-full flex flex-col items-center transition-all transform hover:scale-105 hover:shadow-3xl">
+                <h1 className="text-3xl font-bold mb-6 text-center drop-shadow-lg">Profile</h1>
 
                 {/* Circular Profile Picture */}
-                <div className="w-32 h-32 mb-6 rounded-full overflow-hidden border-4 border-blue-500 bg-gray-200 flex items-center justify-center text-2xl text-white font-semibold">
+                <div className="w-40 h-40 mb-6 rounded-full overflow-hidden border-4 border-blue-500 bg-gray-700 flex items-center justify-center text-3xl font-semibold">
                     {profile.profile_picture ? (
                         <img
                             src={profile.profile_picture}
@@ -52,20 +52,20 @@ const Profile = () => {
                     )}
                 </div>
 
-                <div className="mb-4 w-full">
-                    <p className="text-gray-700"><strong>Name:</strong> {profile.name}</p>
+                <div className="mb-4 w-full text-center">
+                    <p className="text-gray-300"><strong>Name:</strong> {profile.name}</p>
                 </div>
-                <div className="mb-4 w-full">
-                    <p className="text-gray-700"><strong>Email:</strong> {profile.email}</p>
+                <div className="mb-4 w-full text-center">
+                    <p className="text-gray-300"><strong>Email:</strong> {profile.email}</p>
                 </div>
-                <div className="mb-4 w-full">
-                    <p className="text-gray-700"><strong>Phone:</strong> {profile.phone_no}</p>
+                <div className="mb-4 w-full text-center">
+                    <p className="text-gray-300"><strong>Phone:</strong> {profile.phone_no}</p>
                 </div>
 
                 {/* Logout Button */}
                 <button
                     onClick={handleLogout}
-                    className="mt-6 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">
+                    className="mt-6 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-all transform hover:scale-105 hover:rotate-3d">
                     Logout
                 </button>
             </div>

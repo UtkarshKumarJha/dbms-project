@@ -13,6 +13,7 @@
     "@nextui-org/react": "^2.6.11",
     "@tailwindcss/vite": "^4.0.17",
     "axios": "^1.8.4",
+    "framer-motion": "^12.7.2",
     "leaflet": "^1.9.4",
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "react": "^19.0.0",

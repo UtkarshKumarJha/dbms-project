@@ -7,7 +7,6 @@ const Signup = () => {
         name: "",
         email: "",
         password: "",
-
         phone_no: "",
         b_name: "",
         b_description: ""
@@ -58,26 +57,26 @@ const Signup = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-md w-96">
-                <h2 className="text-2xl font-bold text-center mb-4">Sign Up</h2>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-800 to-gray-600">
+            <form onSubmit={handleSubmit} className="bg-gray-900 p-8 rounded-lg shadow-2xl w-96 transition-all transform hover:scale-105 hover:shadow-3xl">
+                <h2 className="text-3xl font-bold text-center mb-6 text-white drop-shadow-lg">Sign Up</h2>
 
                 {error && <p className="text-red-500 text-center">{error}</p>}
 
                 <input type="text" name="name" placeholder="Full Name" required
-                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
+                    className="w-full p-3 border-2 border-gray-700 rounded mt-2 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-600" onChange={handleChange} />
 
                 <input type="email" name="email" placeholder="Email" required
-                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
+                    className="w-full p-3 border-2 border-gray-700 rounded mt-2 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-600" onChange={handleChange} />
 
                 <input type="password" name="password" placeholder="Password" required
-                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
+                    className="w-full p-3 border-2 border-gray-700 rounded mt-2 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-600" onChange={handleChange} />
 
                 <input type="tel" name="phone_no" placeholder="Phone Number" required
-                    className="w-full p-2 border rounded mt-2" onChange={handleChange} />
+                    className="w-full p-3 border-2 border-gray-700 rounded mt-2 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-600" onChange={handleChange} />
 
                 {/* Seller toggle */}
-                <label className="flex items-center mt-3">
+                <label className="flex items-center mt-3 text-white">
                     <input
                         type="checkbox"
                         checked={isSeller}
@@ -94,20 +93,20 @@ const Signup = () => {
                             name="b_name"
                             placeholder="Business Name"
                             required
-                            className="w-full p-2 border rounded mt-2"
+                            className="w-full p-3 border-2 border-gray-700 rounded mt-2 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                             onChange={handleChange}
                         />
                         <textarea
                             name="b_description"
                             placeholder="Business Description"
                             required
-                            className="w-full p-2 border rounded mt-2"
+                            className="w-full p-3 border-2 border-gray-700 rounded mt-2 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                             onChange={handleChange}
                         />
                     </>
                 )}
 
-                <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded mt-4 hover:bg-blue-700">
+                <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg mt-4 hover:bg-blue-700 transition-all transform hover:scale-105 hover:shadow-2xl">
                     Sign Up
                 </button>
             </form>

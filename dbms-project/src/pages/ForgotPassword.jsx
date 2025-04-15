@@ -1,74 +1,88 @@
-import React, { useState } from 'react'
-import { VerifyEmail, VerifyOTP, PasswordReset, ResetSuccessful } from '../components/ForgotPasswordComponent';
-import api from '../services/api';
+import React, { useState } from "react";
+import {
+    VerifyEmail,
+    VerifyOTP,
+    PasswordReset,
+    ResetSuccessful,
+} from "../components/ForgotPasswordComponent";
+import api from "../services/api";
+import { toast } from "react-toastify";
 
-function ForgotPassword() {
+const ForgotPassword = () => {
+    const [formState, setFormState] = useState("verifyEmail");
+    const [email, setEmail] = useState("");
+    const [otp, setOTP] = useState("");
 
-    const [formState, setFormState] = useState("verifyEmail")
+    const handleEmailChange = (e) => setEmail(e.target.value);
+    const handleOTPChange = (e) => setOTP(e.target.value);
 
-    const [email, setEmail] = useState("")
-    const [otp, setOTP] = useState("")
-
-    function handleEmailChange(e) {
-        setEmail(e.target.value)
-    }
-
-    function handleOTPChange(e) {
-        setOTP(e.target.value)
-    }
-
-    async function handleVerifyEmailAndSentOTP(e) {
+    const handleVerifyEmailAndSendOTP = async (e) => {
         e.preventDefault();
-        console.log("Verifying email:", email);
+
+        if (!email) {
+            toast.error("Please enter your email.");
+            return;
+        }
 
         try {
-            const response = await api.post('/forgotpassword/sendotp', { email });
-            console.log("Response:", response);
+            const response = await api.post("/forgotpassword/sendotp", { email });
+
             if (response.status === 200) {
-                setFormState("verifyOTP"); // Update formState on success
+                toast.success("OTP sent to your email.");
+                setFormState("verifyOTP");
             } else {
-                console.error("Unexpected response:", response);
+                toast.error("Failed to send OTP. Try again.");
             }
         } catch (error) {
-            console.error("Error during API call:", error.response || error.message);
+            console.error("Error sending OTP:", error);
+            toast.error("Something went wrong. Please try again.");
         }
-    }
+    };
 
-    function renderForm() {
+    const renderForm = () => {
         switch (formState) {
             case "verifyEmail":
-                return <VerifyEmail
-                    email={email}
-                    handleEmailChange={handleEmailChange}
-                    handleVerifyEmailAndSentOTP={handleVerifyEmailAndSentOTP}
-                    setFormState={setFormState}
-                />
+                return (
+                    <VerifyEmail
+                        email={email}
+                        handleEmailChange={handleEmailChange}
+                        handleVerifyEmailAndSentOTP={handleVerifyEmailAndSendOTP}
+                        setFormState={setFormState}
+                    />
+                );
+
             case "verifyOTP":
-                return <VerifyOTP
-                    email={email}
-                    otp={otp}
-                    handleOTPChange={handleOTPChange}
-                    handleVerifyEmailAndSentOTP={handleVerifyEmailAndSentOTP}
-                    setFormState={setFormState}
-                />
+                return (
+                    <VerifyOTP
+                        email={email}
+                        otp={otp}
+                        handleOTPChange={handleOTPChange}
+                        setFormState={setFormState}
+                    />
+                );
+
             case "passwordReset":
-                return <PasswordReset
-                    email={email}
-                    setFormState={setFormState}
-                />
+                return <PasswordReset email={email} setFormState={setFormState} />;
+
             case "resetSuccessful":
-                return <ResetSuccessful />
+                return <ResetSuccessful />;
+
             default:
-                return <div>Something went wrong! Please refresh</div>
+                return (
+                    <div className="text-center text-red-500 dark:text-red-400">
+                        Something went wrong! Please refresh the page.
+                    </div>
+                );
         }
-    }
+    };
 
     return (
-        <>
-            {renderForm()}
-        </>
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+            <div className="w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+                {renderForm()}
+            </div>
+        </div>
+    );
+};
 
-    )
-}
-
-export default ForgotPassword
+export default ForgotPassword;

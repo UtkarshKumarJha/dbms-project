@@ -64,15 +64,17 @@ const Orders = () => {
     if (error) return <div className="text-center text-lg p-10 text-red-500">{error}</div>;
 
     return (
-        <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-950 to-gray-400 p-10">
-            <h1 className="text-3xl font-bold text-white mb-6">Your Orders</h1>
-            <div className="w-full max-w-4xl">
+        <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-gray-900 via-gray-800 to-black p-10">
+            <h1 className="text-4xl font-semibold text-white mb-8">Your Orders</h1>
+            <div className="w-full max-w-5xl space-y-6">
                 {orders.length > 0 ? (
                     orders.map((order) => (
-                        <OrderSummary key={order.order_id} order={order} />
+                        <div key={order.order_id} className="bg-black/70 p-6 rounded-lg shadow-xl backdrop-blur-lg">
+                            <OrderSummary order={order} />
+                        </div>
                     ))
                 ) : (
-                    <p className="text-white">No orders found.</p>
+                    <p className="text-gray-400">No orders found.</p>
                 )}
             </div>
         </div>
