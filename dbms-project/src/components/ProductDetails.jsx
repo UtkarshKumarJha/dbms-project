@@ -61,7 +61,7 @@ const ProductDetails = ({ cart, setCart }) => {
 
         navigate("/checkout", {
             state: {
-                product: { ...product, quantity: selectedQuantity }
+                product: { ...product, quantity: selectedQuantity, product_image: product.image }
             }
         });
     };

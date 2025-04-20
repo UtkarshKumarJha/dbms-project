@@ -52,7 +52,8 @@ const Signup = () => {
 
         } catch (err) {
             console.error(err);
-            setError(err.response?.data?.error || "Signup failed");
+            setError(err.response?.data?.message || "Signup failed");
+
         }
     };
 

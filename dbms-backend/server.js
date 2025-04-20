@@ -17,6 +17,14 @@ app.post("/signup", async (req, res) => {
         return res.status(400).json({ message: "All fields are required!" });
     }
     try {
+        const [existingUser] = await db.query("SELECT * FROM user WHERE email = ?", [email]);
+        if (existingUser.length > 0) {
+            return res.status(409).json({ message: "Email already registered!" });
+        }
+        const [existingPhone] = await db.query("SELECT * FROM user WHERE phone_no = ?", [phone_no]);
+        if (existingPhone.length > 0) {
+            return res.status(409).json({ message: "Phone number already registered!" });
+        }
         const hashedPassword = await bcrypt.hash(password, 10);
         const [rows] = await db.query("INSERT INTO user (name, email, pass, phone_no) VALUES (?, ?, ?, ?)", [name, email, hashedPassword, phone_no]);
         if (rows.length > 0) {
