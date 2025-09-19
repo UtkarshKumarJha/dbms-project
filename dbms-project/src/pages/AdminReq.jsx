@@ -22,8 +22,8 @@ const AdminRequestsPage = () => {
 
     const approveRequest = async (request) => {
         try {
-            await api.post(`/approve-seller/${request._id}`, {
-                user_id: request.user._id
+            await api.post(`/approve-seller/${request.request_id}`, {
+                user_id: request.user_id
             });
             fetchRequests();
         } catch (err) {
@@ -81,11 +81,11 @@ const AdminRequestsPage = () => {
                             className="p-6 bg-gray-800 bg-opacity-50 border border-gray-700 rounded-2xl shadow-xl backdrop-blur-lg transition-all"
                         >
 
-                            <p className="mb-2"><span className="font-semibold">Name:</span> {req.user.name}</p>
+                            <p className="mb-2"><span className="font-semibold">Name:</span> {req.name}</p>
 
-                            <p className="mb-2"><span className="font-semibold">Email:</span> {req.user.email}</p>
+                            <p className="mb-2"><span className="font-semibold">Email:</span> {req.email}</p>
 
-                            <p className="mb-2"><span className="font-semibold">Phone No:</span> {req.user.phone_no}</p>
+                            <p className="mb-2"><span className="font-semibold">Phone No:</span> {req.phone_no}</p>
 
                             <p className="mb-2"><span className="font-semibold">Business Name:</span> {req.b_name}</p>
 

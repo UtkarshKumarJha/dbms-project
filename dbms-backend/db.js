@@ -1,16 +1,19 @@
-const mongoose = require("mongoose");
-require("dotenv").config();
+const mysql = require('mysql2');
+require('dotenv').config();
 
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
+const db = mysql.createConnection({
+    host: process.env.DB_HOST, // e.g., 'localhost'
+    user: process.env.DB_USER, // e.g., 'root'
+    password: process.env.DB_PASSWORD, // e.g., 'password'
+    database: process.env.DB_NAME // e.g., 'mydatabase'
 });
 
-const db = mongoose.connection;
-
-db.on("error", console.error.bind(console, "MongoDB connection error:"));
-db.once("open", () => {
-    console.log("Connected to MongoDB");
+db.connect(err => {
+    if (err) {
+        console.error('Database connection failed:', err);
+    } else {
+        console.log('Connected to MySQL database');
+    }
 });
 
-module.exports = db;
+module.exports = db.promise();

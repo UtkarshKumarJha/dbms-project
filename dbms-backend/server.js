@@ -1,139 +1,37 @@
-import express from 'express';
-import cors from 'cors';
-import fs from "fs";
-import path from "path";
-import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import multer from "multer";
-import crypto from "crypto";
-import { GridFSBucket } from "mongodb";
+const express = require('express');
+const cors = require('cors');
+const db = require('./db');
 
-const upload = multer({ storage: multer.memoryStorage() });
-import dotenv from 'dotenv';
-dotenv.config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // For JSON parsing
 
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => console.log("MongoDB connected"))
-  .catch(err => console.error("MongoDB connection error:", err));
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
-
-// Schema Definitions
-const UserSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    pass: { type: String, required: true },
-    phone_no: { type: String, required: true, unique: true }
-});
-const User = mongoose.model('User', UserSchema);
-
-const AdminSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
-});
-const Admin = mongoose.model('Admin', AdminSchema);
-
-const RequestSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    b_name: { type: String, required: true },
-    b_description: { type: String, required: true }
-});
-const Request = mongoose.model('Request', RequestSchema);
-
-const SellerSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    b_name: { type: String, required: true },
-    b_description: { type: String, required: true },
-    is_verified: { type: Boolean, default: false }
-});
-const Seller = mongoose.model('Seller', SellerSchema);
-
-const CategorySchema = new mongoose.Schema({
-    name: { type: String, required: true, unique: true }
-});
-const Category = mongoose.model('Category', CategorySchema);
-
-const ProductSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    details: { type: String, required: true },
-    price: { type: Number, required: true },
-    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
-    brand: { type: String, required: true },
-    quantity: { type: Number, required: true },
-    images: [{
-      path: { type: String, required: true },
-      iv: { type: String, required: true }
-    }], // multiple image URLs
-    video: { type: String }     // optional video URL
-});
-const Product = mongoose.model('Product', ProductSchema);
-
-const DiscountSchema = new mongoose.Schema({
-    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true, unique: true },
-    discount: { type: Number, required: true }
-});
-const Discount = mongoose.model('Discount', DiscountSchema);
-
-const CartItemSchema = new mongoose.Schema({
-    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-    quantity: { type: Number, required: true, min: 1 },
-    price: { type: Number, required: true }
-});
-
-const CartSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-    items: [CartItemSchema],
-    added_at: { type: Date, default: Date.now }
-});
-const Cart = mongoose.model('Cart', CartSchema);
-
-
-const OrderSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    items: [{
-        product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-        quantity: { type: Number, required: true },
-        price: { type: Number, required: true }
-    }],
-    total_price: { type: Number, required: true },
-    status: { type: String, default: 'Pending' },
-    date: { type: Date, default: Date.now },
-    location: { type: String, required: true },
-    cancel_reason: { type: String }
-});
-const Order = mongoose.model('Order', OrderSchema);
-
-const ReviewSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-    rating: { type: Number, required: true },
-    review_text: { type: String, required: true },
-    review_date: { type: Date, default: Date.now }
-});
-ReviewSchema.index({ user: 1, product: 1 }, { unique: true });
-const Review = mongoose.model('Review', ReviewSchema);
-
-
-// Routes
 app.post("/signup", async (req, res) => {
     const { name, email, password, phone_no } = req.body;
+
     if (!name || !email || !password || !phone_no) {
         return res.status(400).json({ message: "All fields are required!" });
     }
     try {
-        const existingUser = await User.findOne({ $or: [{ email }, { phone_no }] });
-        if (existingUser) {
-            return res.status(409).json({ message: "Email or phone number already registered!" });
+        const [existingUser] = await db.query("SELECT * FROM user WHERE email = ?", [email]);
+        if (existingUser.length > 0) {
+            return res.status(409).json({ message: "Email already registered!" });
+        }
+        const [existingPhone] = await db.query("SELECT * FROM user WHERE phone_no = ?", [phone_no]);
+        if (existingPhone.length > 0) {
+            return res.status(409).json({ message: "Phone number already registered!" });
         }
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = new User({ name, email, pass: hashedPassword, phone_no });
-        await user.save();
-        res.status(201).json({ user_id:user._id,message: "User created successfully!" });
+        const [rows] = await db.query("INSERT INTO user (name, email, pass, phone_no) VALUES (?, ?, ?, ?)", [name, email, hashedPassword, phone_no]);
+        if (rows.length > 0) {
+            res.json({ message: "User created successfully!" });
+        } else {
+            res.json({ error: "User creation failed!" });
+        }
     } catch (err) {
         console.error("Error creating user:", err);
         res.status(500).json({ error: "Internal server error" });
@@ -141,28 +39,45 @@ app.post("/signup", async (req, res) => {
 });
 
 app.get("/is-admin/:user_id", async (req, res) => {
+    const userId = req.params.user_id;
+
     try {
-        const admin = await Admin.findOne({ user: req.params.user_id });
-        res.json({ isAdmin: !!admin });
+        const [rows] = await db.query("SELECT * FROM admin WHERE user_id = ?", [userId]);
+        if (rows.length > 0) {
+            res.json({ isAdmin: true });
+        } else {
+            res.json({ isAdmin: false });
+        }
     } catch (err) {
         console.error("Error checking admin:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });
 
+// Register as Seller (Insert into Requests Table)
 app.post("/register-seller", async (req, res) => {
-    const { user_id, b_name, b_description } = req.body;
+    const { user_id, email, b_name, b_description } = req.body;
+
     try {
-        const seller = await Seller.findOne({ user: user_id, is_verified: true });
-        if (seller) {
+        // Check if already a seller
+        const [sellerCheck] = await db.query("SELECT * FROM seller WHERE user_id = ? AND is_verified=true", [user_id]);
+        if (sellerCheck.length > 0) {
             return res.status(400).json({ message: "Already a seller or request already approved." });
         }
-        const requestExists = await Request.findOne({ user: user_id });
-        if (requestExists) {
+
+        // Check if already sent request
+        const [requestCheck] = await db.query("SELECT * FROM requests WHERE user_id = ?", [user_id]);
+        if (requestCheck.length > 0) {
             return res.status(400).json({ message: "Request already sent." });
         }
-        const newRequest = new Request({ user: user_id, b_name, b_description });
-        await newRequest.save();
+        const [rows] = await db.query("select user_id from user where email = ?", [email]);
+        console.log(rows);
+        const userId = rows[0].user_id;
+        await db.query(
+            "INSERT INTO requests (user_id, b_name, b_description) VALUES (?, ?, ?)",
+            [userId, b_name, b_description]
+        );
+
         res.status(200).json({ message: "Seller request submitted successfully." });
     } catch (err) {
         console.error("Register Seller Error:", err);
@@ -170,15 +85,26 @@ app.post("/register-seller", async (req, res) => {
     }
 });
 
+// Approve Seller Request
 app.post("/approve-seller/:request_id", async (req, res) => {
+    const request_id = req.params.request_id;
+
     try {
-        const request = await Request.findById(req.params.request_id);
-        console.log(request);
-        if (!request) return res.status(404).json({ message: "Request not found" });
-        const { user, b_name, b_description } = request;
-        const newSeller = new Seller({ user, b_name, b_description, is_verified: true });
-        await newSeller.save();
-        await Request.findByIdAndDelete(req.params.request_id);
+        // Get request details
+        const [requests] = await db.query("SELECT * FROM requests WHERE request_id = ?", [request_id]);
+        if (requests.length === 0) return res.status(404).json({ message: "Request not found" });
+
+        const { user_id, b_name, b_description } = requests[0];
+
+        // Insert into seller
+        await db.query(
+            "INSERT INTO seller (user_id, b_name, b_description, is_verified) VALUES (?, ?, ?, TRUE)",
+            [user_id, b_name, b_description]
+        );
+
+        // Delete from requests table
+        await db.query("DELETE FROM requests WHERE request_id = ?", [request_id]);
+
         res.status(200).json({ message: "Seller approved successfully." });
     } catch (err) {
         console.error("Approve Seller Error:", err);
@@ -187,9 +113,19 @@ app.post("/approve-seller/:request_id", async (req, res) => {
 });
 
 app.get("/is-verified/:user_id", async (req, res) => {
+    const userId = req.params.user_id;
+
     try {
-        const seller = await Seller.findOne({ user: req.params.user_id });
-        res.json({ isSeller: seller && seller.is_verified });
+        const [rows] = await db.query(
+            "SELECT is_verified FROM seller WHERE user_id = ?",
+            [userId]
+        );
+
+        if (rows.length > 0 && rows[0].is_verified) {
+            res.json({ isSeller: true });
+        } else {
+            res.json({ isSeller: false });
+        }
     } catch (err) {
         console.error("Error checking seller:", err);
         res.status(500).json({ error: "Internal server error" });
@@ -197,18 +133,20 @@ app.get("/is-verified/:user_id", async (req, res) => {
 });
 
 app.post("/reject-request/:request_id", async (req, res) => {
+    const request_id = req.params.request_id;
+
     try {
-        await Request.findByIdAndDelete(req.params.request_id);
-        res.status(200).json({ message: "Request rejected successfully." });
+        await db.query("DELETE FROM requests WHERE request_id = ?", [request_id]);
     } catch (err) {
-        console.error("Reject Request Error:", err);
+        console.error("Approve Seller Error:", err);
         res.status(500).json({ message: "Internal Server Error" });
     }
 });
 
+// Get All Pending Seller Requests
 app.get("/pending-requests", async (req, res) => {
     try {
-        const requests = await Request.find().populate('user', 'name email phone_no');
+        const [requests] = await db.query("SELECT * FROM (SELECT * FROM requests) AS req JOIN user AS u ON req.user_id = u.user_id; ");
         res.status(200).json(requests);
     } catch (err) {
         console.error("Fetch Requests Error:", err);
@@ -216,109 +154,52 @@ app.get("/pending-requests", async (req, res) => {
     }
 });
 
-const ALGORITHM = "aes-256-cbc";
-const SECRET_KEY = Buffer.from(process.env.SECRET_KEY, "hex"); 
+// Add Product (Only Verified Sellers)
+app.post("/add-product", async (req, res) => {
+    const {
+        user_id,
+        name,
+        details,
+        price,
+        category,
+        brand,
+        quantity,
+        image
+    } = req.body;
 
-app.post("/upload", upload.single("video"), async (req, res) => {
-  try {
-    const { buffer, originalname } = req.file;
-
-    // Encrypt buffer
-    const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, IV);
-    const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
-
-    // Save to GridFS
-    const bucket = new GridFSBucket(mongoose.connection.db, {
-      bucketName: "videos",
-    });
-
-    const uploadStream = bucket.openUploadStream(originalname, {
-      metadata: { iv: IV.toString("hex") }
-    });
-    uploadStream.end(encrypted);
-
-    res.json({ msg: "Video uploaded & encrypted successfully!" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Upload failed" });
-  }
-});
-
-app.get("/download/:filename", async (req, res) => {
-  try {
-    const bucket = new GridFSBucket(mongoose.connection.db, {
-      bucketName: "videos",
-    });
-
-    const files = await bucket.find({ filename: req.params.filename }).toArray();
-    if (!files || files.length === 0) return res.status(404).json({ error: "File not found" });
-
-    const file = files[0];
-    const iv = Buffer.from(file.metadata.iv, "hex");
-
-    // Stream encrypted video
-    const downloadStream = bucket.openDownloadStreamByName(req.params.filename);
-
-    let chunks = [];
-    downloadStream.on("data", (chunk) => chunks.push(chunk));
-    downloadStream.on("end", () => {
-      const encryptedBuffer = Buffer.concat(chunks);
-
-      // Decrypt
-      const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, iv);
-      const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
-
-      res.setHeader("Content-Type", "video/mp4"); // Adjust if AVI/MKV/etc.
-      res.send(decrypted);
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Download failed" });
-  }
-});
-
-
-
-app.post("/add-product", upload.array("images"), async (req, res) => {
-    const { user_id, name, details, price, category, brand, quantity } = req.body;
     try {
-        const seller = await Seller.findOne({ user: user_id, is_verified: true });
-        if (!seller) return res.status(403).json({ message: "You are not a verified seller." });
+        // 1. Check if user is a verified seller
+        const [sellerRows] = await db.query(
+            "SELECT seller_id FROM seller WHERE user_id = ? AND is_verified = TRUE",
+            [user_id]
+        );
 
-        let cat = await Category.findOne({ name: category });
-        if (!cat) {
-            cat = new Category({ name: category });
-            await cat.save();
+        if (sellerRows.length === 0) {
+            return res.status(403).json({ message: "You are not a verified seller." });
         }
 
-        // --- FIX START ---
-        // 1. Define the directory name
-        const uploadDir = 'uploads';
-        // 2. Check if the directory exists, and if not, create it.
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
+        const seller_id = sellerRows[0].seller_id;
+
+        // 2. Check or create category
+        const [catRows] = await db.query("SELECT category_id FROM category WHERE name = ?", [category]);
+
+        let category_id;
+        if (catRows.length > 0) {
+            console.log(catRows);
+            category_id = catRows[0].category_id;
+        } else {
+            const [insertResult] = await db.query("INSERT INTO category (name) VALUES (?)", [category]);
+            category_id = insertResult.insertId;
         }
-        // --- FIX END ---
 
-        const encryptedImages = req.files.map(file => {
-            const iv = crypto.randomBytes(16);
-            const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+        // 3. Insert product
+        await db.query(
+            `INSERT INTO product 
+            (name, details, price, category_id, brand, quantity, image)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [name, details, price, category_id, brand, quantity, image]
+        );
 
-            const encrypted = Buffer.concat([cipher.update(file.buffer), cipher.final()]);
-
-            // 3. (Optional but good practice) Use path.join to create the file path
-            const filePath = path.join(uploadDir, `${Date.now()}-${file.originalname}.enc`);
-            fs.writeFileSync(filePath, encrypted);
-
-            return { path: filePath, iv: iv.toString("hex") };
-        });
-
-
-        const newProduct = new Product({
-            name, details, price, category: cat._id, brand, quantity, images: encryptedImages
-        });
-
-        await newProduct.save();
         res.status(201).json({ message: "Product added successfully." });
 
     } catch (err) {
@@ -329,12 +210,25 @@ app.post("/add-product", upload.array("images"), async (req, res) => {
 
 app.post("/add-discount", async (req, res) => {
     const { product_id, discount } = req.body;
+
     try {
-        await Discount.findOneAndUpdate(
-            { product: product_id },
-            { discount },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+        const [check] = await db.query(
+            "SELECT * FROM discount WHERE product_id = ?",
+            [product_id]
         );
+
+        if (check.length > 0) {
+            await db.query(
+                "UPDATE discount SET discount = ? WHERE product_id = ?",
+                [discount, product_id]
+            );
+        } else {
+            await db.query(
+                "INSERT INTO discount (product_id, discount) VALUES (?, ?)",
+                [product_id, discount]
+            );
+        }
+
         res.status(200).json({ message: "Discount added/updated successfully" });
     } catch (err) {
         console.error(err);
@@ -342,74 +236,101 @@ app.post("/add-discount", async (req, res) => {
     }
 });
 
+
 app.get("/checkbrand/:id", async (req, res) => {
+    const userId = req.params.id;
     try {
-        const seller = await Seller.findOne({ user: req.params.id });
-        if (!seller) {
+        const [brandRows] = await db.query("SELECT b_name FROM seller WHERE user_id = ?", [userId]);
+        if (brandRows.length === 0) {
             return res.status(404).json({ message: "Brand not found" });
         }
-        res.json({ brand: seller.b_name });
-    } catch (err) {
+        res.json({ brand: brandRows[0].b_name });
+    }
+    catch (err) {
         console.error("Error checking brand:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 });
 
+// Login Route
 app.post("/login", async (req, res) => {
     const { email, password } = req.body;
+
     try {
-        const user = await User.findOne({ email });
-        if (!user) {
+        const [results] = await db.query("SELECT * FROM user WHERE email = ?", [email]);
+
+        if (results.length === 0) {
             return res.status(401).json({ error: "User not found" });
         }
+
+        const user = results[0];
         const isPasswordValid = await bcrypt.compare(password, user.pass);
+
         if (!isPasswordValid) {
             return res.status(401).json({ error: "Invalid password" });
         }
-        const token = jwt.sign({ id: user._id, email: user.email }, "secretkey", { expiresIn: "1h" });
-        res.json({ token, userId: user._id, message: "Login successful" });
+
+        const token = jwt.sign(
+            { id: user.user_id, email: user.email }, // Note: use user.user_id, not user.id
+            "secretkey",
+            { expiresIn: "1h" }
+        );
+
+        res.json({ token, userId: user.user_id, message: "Login successful" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
+// Get all users
 app.get('/users', async (req, res) => {
     try {
-        const users = await User.find().select('-pass');
-        res.json(users);
+        const [results] = await db.query('SELECT * FROM user');
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+
 });
 
 app.get("/profile/:userId", async (req, res) => {
+    const { userId } = req.params;
+    const sql = "SELECT name, email, phone_no FROM user WHERE user_id = ?";
+
     try {
-        const user = await User.findById(req.params.userId).select('name email phone_no');
-        if (!user) {
+        const [results] = await db.execute(sql, [userId]); // use execute if you're using promise-based MySQL2
+        if (results.length === 0) {
             return res.status(404).json({ message: "User not found" });
         }
-        res.json(user);
+        res.json(results[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-import { sendOTP, verifyOTP } from "./otp.js";
+const { sendOTP, verifyOTP } = require('./otp');
 
 app.post("/forgotpassword/resetpassword", async (req, res) => {
     const { email, newPassword, confirmPassword } = req.body;
+
     if (newPassword !== confirmPassword) {
         return res.status(400).json({ error: "Passwords do not match" });
     }
+
     try {
-        const user = await User.findOne({ email });
-        if (!user) {
+        const [users] = await db.query("SELECT * FROM user WHERE email = ?", [email]);
+
+        if (users.length === 0) {
             return res.status(404).json({ error: "User not found" });
         }
+
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.pass = hashedPassword;
-        await user.save();
+
+        await db.query("UPDATE user SET pass = ? WHERE email = ?", [hashedPassword, email]);
+
+        console.log("Password updated successfully!");
         return res.status(200).json({ message: "Password Reset Successful" });
+
     } catch (error) {
         console.error("Password reset error:", error);
         return res.status(500).json({ error: "Internal server error" });
@@ -419,39 +340,54 @@ app.post("/forgotpassword/resetpassword", async (req, res) => {
 app.post("/forgotpassword/sendotp", sendOTP);
 app.post("/forgotpassword/verifyotp", verifyOTP);
 
+
 app.post("/addtocart", async (req, res) => {
     const { userId, product_id, quantity, price } = req.body;
+
     if (!userId || !product_id || quantity <= 0) {
         return res.status(400).json({ error: "Invalid user ID, product ID, or quantity" });
     }
+
     try {
-        const product = await Product.findById(product_id);
-        if (!product) return res.status(404).json({ error: "Product not found" });
+        // Check if product already exists in cart for the user
+        const [existingItems] = await db.query(
+            `SELECT c.*, d.discount 
+     FROM cart c 
+     LEFT JOIN discount d ON c.product_id = d.product_id 
+     WHERE c.user_id = ? AND c.product_id = ?`,
+            [userId, product_id]
+        );
 
-        let cart = await Cart.findOne({ user: userId });
-        if (cart) {
-            const itemIndex = cart.items.findIndex(p => p.product.equals(product_id));
-            const newQuantity = (itemIndex > -1 ? cart.items[itemIndex].quantity : 0) + quantity;
+        console.log(existingItems);
 
-            if(newQuantity > product.quantity) {
-                 return res.status(400).json({ error: "Quantity exceeds available stock" });
+        if (existingItems.length > 0) {
+            const quantity2 = existingItems[0].quantity;
+            // Check if quantity is greater than available stock
+            const [product] = await db.query("SELECT quantity FROM product WHERE product_id = ?", [product_id]);
+            if (product.length === 0) {
+                return res.status(404).json({ error: "Product not found" });
             }
-
-            if (itemIndex > -1) {
-                cart.items[itemIndex].quantity = newQuantity;
-            } else {
-                cart.items.push({ product: product_id, quantity, price });
+            const availableStock = product[0].quantity;
+            if (quantity + quantity2 > availableStock) {
+                return res.status(400).json({ error: "Quantity exceeds available stock" });
             }
-            await cart.save();
+            console.log("Product exists in cart, updating quantity...");
+            console.log("Existing quantity:", quantity2);
+            console.log("New quantity:", quantity + quantity2);
+            console.log("Available stock:", availableStock);
+
+            // Product exists, update quantity
+            await db.query(
+                "UPDATE cart SET quantity = quantity + ? WHERE user_id = ? AND product_id = ?",
+                [quantity, userId, product_id]
+            );
             return res.status(200).json({ message: "Cart updated successfully" });
         } else {
-             if(quantity > product.quantity) {
-                 return res.status(400).json({ error: "Quantity exceeds available stock" });
-            }
-            const newCart = await Cart.create({
-                user: userId,
-                items: [{ product: product_id, quantity, price }]
-            });
+            // Product not in cart, insert new record
+            await db.query(
+                "INSERT INTO cart (user_id, product_id, quantity, price, added_at) VALUES (?, ?, ?, ?, NOW())",
+                [userId, product_id, quantity, price]
+            );
             return res.status(201).json({ message: "Product added to cart" });
         }
     } catch (err) {
@@ -459,117 +395,69 @@ app.post("/addtocart", async (req, res) => {
         return res.status(500).json({ error: "Internal server error" });
     }
 });
-
 app.get('/products', async (req, res) => {
     try {
-        const products = await Product.aggregate([
-            {
-                $lookup: {
-                    from: 'categories',
-                    localField: 'category',
-                    foreignField: '_id',
-                    as: 'category'
-                }
-            },
-            { $unwind: '$category' },
-            {
-                $lookup: {
-                    from: 'discounts',
-                    localField: '_id',
-                    foreignField: 'product',
-                    as: 'discountInfo'
-                }
-            },
-            {
-                $addFields: {
-                    category: '$category.name',
-                    discount: { $ifNull: [{ $arrayElemAt: ['$discountInfo.discount', 0] }, null] }
-                }
-            },
-            { $project: { discountInfo: 0 } }
-        ]);
-
-        // 🔑 decrypt image buffers and embed as base64
-        const decryptedProducts = products.map(prod => {
-            const decryptedImages = prod.images.map(img => {
-                const encrypted = fs.readFileSync(img.path);
-                const iv = Buffer.from(img.iv, "hex");
-                const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, iv);
-                const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-                return `data:image/png;base64,${decrypted.toString("base64")}`;
-            });
-            return { ...prod, images: decryptedImages };
-        });
-
-        res.json(decryptedProducts);
+        const [results] = await db.query(
+            'SELECT p.product_id, p.name, p.details, p.price, p.brand, p.image, c.name AS category, d.discount ' +
+            'FROM product p ' +
+            'JOIN category c ON p.category_id = c.category_id ' +
+            'LEFT JOIN discount d ON p.product_id = d.product_id'
+        );
+        res.json(results);
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
 });
 
-
 app.get('/cart/:id', async (req, res) => {
+    const id = req.params.id;
+    const query = `
+        SELECT 
+            cart.cart_id, cart.user_id, cart.product_id, cart.quantity, 
+            cart.price, discount.discount,cart.added_at, 
+            product.name AS product_name, product.image AS product_image
+        FROM cart 
+        INNER JOIN product ON cart.product_id = product.product_id
+        LEFT JOIN discount ON cart.product_id = discount.product_id
+        where cart.user_id = ?;
+    `;
+
     try {
-        const cart = await Cart.findOne({ user: req.params.id })
-            .populate('items.product', 'name image')
-            .lean();
-        if (!cart) {
-            return res.json([]);
-        }
-
-        const productIds = cart.items.map(item => item.product._id);
-        const discounts = await Discount.find({ product: { $in: productIds } }).lean();
-        const discountMap = discounts.reduce((map, disc) => {
-            map[disc.product.toString()] = disc.discount;
-            return map;
-        }, {});
-
-        const cartItems = cart.items.map(item => ({
-            cart_id: item._id,
-            user_id: cart.user,
-            product_id: item.product._id,
-            quantity: item.quantity,
-            price: item.price,
-            discount: discountMap[item.product._id.toString()] || null,
-            added_at: cart.added_at,
-            product_name: item.product.name,
-            product_image: item.product.image
-        }));
-
-        res.json(cartItems);
+        const [results] = await db.query(query, [id]);
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
-
 
 app.put("/cart/update", async (req, res) => {
-    const { cart_id, quantity, userId } = req.body;
-    if (!cart_id || quantity < 1 || !userId) {
-        return res.status(400).json({ error: "Invalid cart item ID, quantity, or user ID" });
+    const { cart_id, quantity } = req.body;
+
+    if (!cart_id || quantity < 1) {
+        return res.status(400).json({ error: "Invalid cart ID or quantity" });
     }
+
+    const sql = "UPDATE cart SET quantity = ? WHERE cart_id = ?";
     try {
-        const result = await Cart.updateOne(
-            { user: userId, "items._id": cart_id },
-            { $set: { "items.$.quantity": quantity } }
-        );
-        res.json(result);
+        const [results] = await db.query(sql, [quantity, cart_id]);
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-app.delete("/cart/remove/:userId/:itemId", async (req, res) => {
-    const { userId, itemId } = req.params;
-    if (!itemId) {
-        return res.status(400).json({ error: "Cart item ID is required" });
+app.delete("/cart/remove/:id", async (req, res) => {
+    const { id } = req.params; // Extract cart_id from URL parameter
+
+    if (!id) {
+        return res.status(400).json({ error: "Cart ID is required" });
     }
+
+    const query = "DELETE FROM cart WHERE cart_id = ?";
+
     try {
-        const result = await Cart.updateOne(
-            { user: userId },
-            { $pull: { items: { _id: itemId } } }
-        );
-        res.json(result);
+        const [results] = await db.query(query, [id]);
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -577,111 +465,131 @@ app.delete("/cart/remove/:userId/:itemId", async (req, res) => {
 
 app.post("/create-order", async (req, res) => {
     const { userId, items, location } = req.body;
+
     if (!userId || !items || items.length === 0) {
         return res.status(400).json({ error: "Invalid order data" });
     }
-    const session = await mongoose.startSession();
-    session.startTransaction();
+
+    const insertOrderSql = `
+        INSERT INTO orders (user_id, status, date, total_price, product_id, quantity, location) 
+        VALUES ?`;
+
+    const orderValues = items.map(item => [
+        userId,
+        "Pending",
+        new Date(),
+        item.price * item.quantity,
+        item.product_id,
+        item.quantity,
+        location
+    ]);
+
+    const reducequntity = 'UPDATE product SET quantity = quantity - ? WHERE product_id = ?';
     try {
-        const totalPrice = items.reduce((total, item) => total + item.price * item.quantity, 0);
-        const orderItems = items.map(item => ({
-            product: item.product_id,
-            quantity: item.quantity,
-            price: item.price
-        }));
+        const [results] = await db.query(insertOrderSql, [orderValues]);
+        for (const item of items) {
+            await db.query("UPDATE product SET quantity = quantity - ? WHERE product_id = ?", [item.quantity, item.product_id]);
+        }
 
-        const newOrder = new Order({ user: userId, items: orderItems, total_price: totalPrice, location });
-        await newOrder.save({ session });
-
-        const bulkOps = items.map(item => ({
-            updateOne: {
-                filter: { _id: item.product_id },
-                update: { $inc: { quantity: -item.quantity } }
-            }
-        }));
-        await Product.bulkWrite(bulkOps, { session });
-
-        await Cart.deleteOne({ user: userId }, { session });
-
-        await session.commitTransaction();
-        res.status(201).json({ message: "Order created successfully", orderId: newOrder._id });
+        res.status(201).json({ message: "Order created successfully", orderId: results.insertId });
     } catch (err) {
-        await session.abortTransaction();
         res.status(500).json({ error: err.message });
-    } finally {
-        session.endSession();
     }
 });
 
+
+
 app.get('/orders', async (req, res) => {
-    const { userId } = req.query;
+    const userId = req.query.userId; // Extract userId from query
+
     if (!userId) {
         return res.status(400).json({ error: "User ID is required" });
     }
+
+    const sql = `
+       SELECT
+    orders.order_id,
+    orders.product_id,
+    orders.location,
+    orders.quantity, 
+    orders.status,
+    discount.discount,
+    orders.date,
+    product.image,
+    product.price,
+    product.name
+FROM orders
+JOIN product ON orders.product_id = product.product_id
+LEFT JOIN discount ON orders.product_id = discount.product_id
+WHERE orders.user_id = ?;
+
+    `;
+    console.log(userId);
     try {
-        const orders = await Order.find({ user: userId }).populate('items.product');
-        res.json(orders);
+        console.log(userId);
+        const [results] = await db.execute(sql, [userId]);
+        console.log(results);
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
-
 app.get("/products/stock-check", async (req, res) => {
-    const { ids } = req.query;
+    const { ids } = req.query; // Comma-separated list of product IDs
+
     if (!ids) return res.status(400).json({ error: "No product IDs provided" });
+
     try {
-        const productIds = ids.split(",");
-        const stock = await Product.find({ _id: { $in: productIds } }).select('_id quantity');
-        res.json(stock);
+        const [rows] = await db.query(
+            "SELECT product_id, quantity FROM product WHERE product_id IN (?)",
+            [ids.split(",")]
+        );
+        res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
 
+// PUT /orders/:orderId/cancel
 app.put('/orders/:orderId/cancel', async (req, res) => {
     const { orderId } = req.params;
     const { reason } = req.body;
-    const session = await mongoose.startSession();
-    session.startTransaction();
+
     try {
-        const order = await Order.findById(orderId).session(session);
-        if (!order) {
-            throw new Error("Order not found");
-        }
-        order.status = 'Cancelled';
-        order.cancel_reason = reason;
-        await order.save({ session });
-        const bulkOps = order.items.map(item => ({
-            updateOne: {
-                filter: { _id: item.product },
-                update: { $inc: { quantity: item.quantity } }
-            }
-        }));
-        await Product.bulkWrite(bulkOps, { session });
-        await session.commitTransaction();
-        res.status(200).json({ message: "Order cancelled and stock updated" });
+        await db.query(
+            "UPDATE orders SET status = 'Cancelled', cancel_reason = ? WHERE order_id = ?",
+            [reason, orderId]
+        );
+        res.status(200).json({ message: "Order cancelled and handled via trigger" });
     } catch (err) {
-        await session.abortTransaction();
         console.error(err);
         res.status(500).json({ error: "Failed to cancel order" });
-    } finally {
-        session.endSession();
     }
 });
 
 
+
 app.get('/products/:id', async (req, res) => {
+    const { id } = req.params;
+
+    const query = `
+        SELECT 
+            p.product_id, p.name,d.discount, p.details, p.quantity,p.price, p.brand, p.image, 
+            JSON_ARRAYAGG(c.name) AS categories
+        FROM product p
+        JOIN category c ON p.category_id = c.category_id
+        LEFT JOIN discount d ON p.product_id = d.product_id
+        WHERE p.product_id = ?
+        GROUP BY p.product_id
+    `;
+
     try {
-        const product = await Product.findById(req.params.id)
-            .populate('category', 'name')
-            .lean();
-        if (!product) {
+        const [results] = await db.query(query, [id]);
+        if (results.length === 0) {
             return res.status(404).json({ message: 'Product not found' });
         }
-        const discount = await Discount.findOne({ product: req.params.id }).lean();
-        product.discount = discount ? discount.discount : null;
-        res.json(product);
+        res.json(results[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -689,9 +597,11 @@ app.get('/products/:id', async (req, res) => {
 
 
 app.get('/products/:id/reviews', async (req, res) => {
+    const productId = req.params.id;
+    const query = `SELECT distinct * FROM review join user on review.user_id = user.user_id WHERE product_id = ?`;
     try {
-        const reviews = await Review.find({ product: req.params.id }).populate('user', 'name');
-        res.json(reviews);
+        const [results] = await db.query(query, [productId]);
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -700,16 +610,20 @@ app.get('/products/:id/reviews', async (req, res) => {
 app.post('/products/:id/addreviews', async (req, res) => {
     const productId = req.params.id;
     const { user_id, review_text, rating } = req.body;
+    console.log(user_id, review_text);
     if (!user_id || !review_text) {
         return res.status(400).json({ error: "User ID and comment are required." });
     }
+    const sql = `INSERT INTO review (user_id, product_id, rating, review_text, review_date)
+VALUES (?, ?, ?, ?, NOW())  
+ON DUPLICATE KEY UPDATE
+    rating = VALUES(rating),
+    review_text = VALUES(review_text),
+    review_date = NOW();
+`;
     try {
-        const review = await Review.findOneAndUpdate(
-            { user: user_id, product: productId },
-            { rating, review_text, review_date: new Date() },
-            { upsert: true, new: true }
-        );
-        res.json(review);
+        const [results] = await db.query(sql, [user_id, productId, rating, review_text]);
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -717,12 +631,20 @@ app.post('/products/:id/addreviews', async (req, res) => {
 
 app.get("/checkorder", async (req, res) => {
     const { user_id, product_id } = req.query;
+
     if (!user_id || !product_id) {
         return res.status(400).json({ exists: false, message: "Missing parameters" });
     }
+
+    const sql = `
+        SELECT 1 FROM orders
+        WHERE user_id = ? AND product_id = ?
+        LIMIT 1;
+    `;
+
     try {
-        const order = await Order.findOne({ user: user_id, "items.product": product_id });
-        res.json({ exists: !!order });
+        const [rows] = await db.query(sql, [user_id, product_id]);
+        res.json({ exists: rows.length > 0 });
     } catch (err) {
         console.error("Database error:", err);
         res.status(500).json({ exists: false, message: "Server error" });
