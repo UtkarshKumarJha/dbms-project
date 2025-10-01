@@ -6,25 +6,29 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import multer from "multer";
-import crypto from "crypto";
-import { GridFSBucket } from "mongodb";
-
-const upload = multer({ storage: multer.memoryStorage() });
 import dotenv from 'dotenv';
+
 dotenv.config();
 
+// --- Basic Setup ---
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
 app.use(cors());
 app.use(express.json());
 
+// --- Serve uploaded images statically ---
+// This makes the 'uploads' directory publically accessible
+const __dirname = path.resolve();
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// --- MongoDB Connection ---
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 }).then(() => console.log("MongoDB connected"))
   .catch(err => console.error("MongoDB connection error:", err));
 
-
-// Schema Definitions
+// --- Schema Definitions ---
 const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
@@ -58,6 +62,7 @@ const CategorySchema = new mongoose.Schema({
 });
 const Category = mongoose.model('Category', CategorySchema);
 
+// --- Product Schema (Simplified) ---
 const ProductSchema = new mongoose.Schema({
     name: { type: String, required: true },
     details: { type: String, required: true },
@@ -65,11 +70,8 @@ const ProductSchema = new mongoose.Schema({
     category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
     brand: { type: String, required: true },
     quantity: { type: Number, required: true },
-    images: [{
-      path: { type: String, required: true },
-      iv: { type: String, required: true }
-    }], // multiple image URLs
-    video: { type: String }     // optional video URL
+    images: [String], // Array of image URLs/paths
+    video: { type: String } // optional video URL
 });
 const Product = mongoose.model('Product', ProductSchema);
 
@@ -91,7 +93,6 @@ const CartSchema = new mongoose.Schema({
     added_at: { type: Date, default: Date.now }
 });
 const Cart = mongoose.model('Cart', CartSchema);
-
 
 const OrderSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -118,8 +119,7 @@ const ReviewSchema = new mongoose.Schema({
 ReviewSchema.index({ user: 1, product: 1 }, { unique: true });
 const Review = mongoose.model('Review', ReviewSchema);
 
-
-// Routes
+// --- Routes ---
 app.post("/signup", async (req, res) => {
     const { name, email, password, phone_no } = req.body;
     if (!name || !email || !password || !phone_no) {
@@ -173,7 +173,6 @@ app.post("/register-seller", async (req, res) => {
 app.post("/approve-seller/:request_id", async (req, res) => {
     try {
         const request = await Request.findById(req.params.request_id);
-        console.log(request);
         if (!request) return res.status(404).json({ message: "Request not found" });
         const { user, b_name, b_description } = request;
         const newSeller = new Seller({ user, b_name, b_description, is_verified: true });
@@ -216,69 +215,6 @@ app.get("/pending-requests", async (req, res) => {
     }
 });
 
-const ALGORITHM = "aes-256-cbc";
-const SECRET_KEY = Buffer.from(process.env.SECRET_KEY, "hex"); 
-
-app.post("/upload", upload.single("video"), async (req, res) => {
-  try {
-    const { buffer, originalname } = req.file;
-
-    // Encrypt buffer
-    const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, IV);
-    const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
-
-    // Save to GridFS
-    const bucket = new GridFSBucket(mongoose.connection.db, {
-      bucketName: "videos",
-    });
-
-    const uploadStream = bucket.openUploadStream(originalname, {
-      metadata: { iv: IV.toString("hex") }
-    });
-    uploadStream.end(encrypted);
-
-    res.json({ msg: "Video uploaded & encrypted successfully!" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Upload failed" });
-  }
-});
-
-app.get("/download/:filename", async (req, res) => {
-  try {
-    const bucket = new GridFSBucket(mongoose.connection.db, {
-      bucketName: "videos",
-    });
-
-    const files = await bucket.find({ filename: req.params.filename }).toArray();
-    if (!files || files.length === 0) return res.status(404).json({ error: "File not found" });
-
-    const file = files[0];
-    const iv = Buffer.from(file.metadata.iv, "hex");
-
-    // Stream encrypted video
-    const downloadStream = bucket.openDownloadStreamByName(req.params.filename);
-
-    let chunks = [];
-    downloadStream.on("data", (chunk) => chunks.push(chunk));
-    downloadStream.on("end", () => {
-      const encryptedBuffer = Buffer.concat(chunks);
-
-      // Decrypt
-      const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, iv);
-      const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
-
-      res.setHeader("Content-Type", "video/mp4"); // Adjust if AVI/MKV/etc.
-      res.send(decrypted);
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Download failed" });
-  }
-});
-
-
-
 app.post("/add-product", upload.array("images"), async (req, res) => {
     const { user_id, name, details, price, category, brand, quantity } = req.body;
     try {
@@ -291,31 +227,26 @@ app.post("/add-product", upload.array("images"), async (req, res) => {
             await cat.save();
         }
 
-        // --- FIX START ---
-        // 1. Define the directory name
-        const uploadDir = 'uploads';
-        // 2. Check if the directory exists, and if not, create it.
+        const uploadDir = path.join(__dirname, 'uploads');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
-        // --- FIX END ---
 
-        const encryptedImages = req.files.map(file => {
-            const iv = crypto.randomBytes(16);
-            const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+        const imagePaths = [];
+        if (req.files && req.files.length > 0) {
+            for (const file of req.files) {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const filename = uniqueSuffix + '-' + file.originalname;
+                const filePath = path.join(uploadDir, filename);
 
-            const encrypted = Buffer.concat([cipher.update(file.buffer), cipher.final()]);
-
-            // 3. (Optional but good practice) Use path.join to create the file path
-            const filePath = path.join(uploadDir, `${Date.now()}-${file.originalname}.enc`);
-            fs.writeFileSync(filePath, encrypted);
-
-            return { path: filePath, iv: iv.toString("hex") };
-        });
-
+                await fs.promises.writeFile(filePath, file.buffer);
+                imagePaths.push(`uploads/${filename}`);
+            }
+        }
 
         const newProduct = new Product({
-            name, details, price, category: cat._id, brand, quantity, images: encryptedImages
+            name, details, price, category: cat._id, brand, quantity,
+            images: imagePaths
         });
 
         await newProduct.save();
@@ -359,14 +290,13 @@ app.post("/login", async (req, res) => {
     const { email, password } = req.body;
     try {
         const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ error: "User not found" });
-        }
+        if (!user) return res.status(401).json({ error: "User not found" });
+
         const isPasswordValid = await bcrypt.compare(password, user.pass);
-        if (!isPasswordValid) {
-            return res.status(401).json({ error: "Invalid password" });
-        }
-        const token = jwt.sign({ id: user._id, email: user.email }, "secretkey", { expiresIn: "1h" });
+        if (!isPasswordValid) return res.status(401).json({ error: "Invalid password" });
+        
+        const JWT_SECRET = process.env.JWT_SECRET || "default_secret_key_for_dev";
+        const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "1h" });
         res.json({ token, userId: user._id, message: "Login successful" });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -394,7 +324,10 @@ app.get("/profile/:userId", async (req, res) => {
     }
 });
 
-import { sendOTP, verifyOTP } from "./otp.js";
+// Assuming otp.js exists and is correctly implemented
+// import { sendOTP, verifyOTP } from "./otp.js";
+// app.post("/forgotpassword/sendotp", sendOTP);
+// app.post("/forgotpassword/verifyotp", verifyOTP);
 
 app.post("/forgotpassword/resetpassword", async (req, res) => {
     const { email, newPassword, confirmPassword } = req.body;
@@ -416,9 +349,6 @@ app.post("/forgotpassword/resetpassword", async (req, res) => {
     }
 });
 
-app.post("/forgotpassword/sendotp", sendOTP);
-app.post("/forgotpassword/verifyotp", verifyOTP);
-
 app.post("/addtocart", async (req, res) => {
     const { userId, product_id, quantity, price } = req.body;
     if (!userId || !product_id || quantity <= 0) {
@@ -434,7 +364,7 @@ app.post("/addtocart", async (req, res) => {
             const newQuantity = (itemIndex > -1 ? cart.items[itemIndex].quantity : 0) + quantity;
 
             if(newQuantity > product.quantity) {
-                 return res.status(400).json({ error: "Quantity exceeds available stock" });
+                return res.status(400).json({ error: "Quantity exceeds available stock" });
             }
 
             if (itemIndex > -1) {
@@ -445,10 +375,10 @@ app.post("/addtocart", async (req, res) => {
             await cart.save();
             return res.status(200).json({ message: "Cart updated successfully" });
         } else {
-             if(quantity > product.quantity) {
-                 return res.status(400).json({ error: "Quantity exceeds available stock" });
+            if(quantity > product.quantity) {
+                return res.status(400).json({ error: "Quantity exceeds available stock" });
             }
-            const newCart = await Cart.create({
+            await Cart.create({
                 user: userId,
                 items: [{ product: product_id, quantity, price }]
             });
@@ -463,66 +393,29 @@ app.post("/addtocart", async (req, res) => {
 app.get('/products', async (req, res) => {
     try {
         const products = await Product.aggregate([
-            {
-                $lookup: {
-                    from: 'categories',
-                    localField: 'category',
-                    foreignField: '_id',
-                    as: 'category'
-                }
-            },
+            { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
             { $unwind: '$category' },
-            {
-                $lookup: {
-                    from: 'discounts',
-                    localField: '_id',
-                    foreignField: 'product',
-                    as: 'discountInfo'
-                }
-            },
-            {
-                $addFields: {
-                    category: '$category.name',
-                    discount: { $ifNull: [{ $arrayElemAt: ['$discountInfo.discount', 0] }, null] }
-                }
-            },
+            { $lookup: { from: 'discounts', localField: '_id', foreignField: 'product', as: 'discountInfo' } },
+            { $addFields: { category: '$category.name', discount: { $ifNull: [{ $arrayElemAt: ['$discountInfo.discount', 0] }, null] } } },
             { $project: { discountInfo: 0 } }
         ]);
-
-        // 🔑 decrypt image buffers and embed as base64
-        const decryptedProducts = products.map(prod => {
-            const decryptedImages = prod.images.map(img => {
-                const encrypted = fs.readFileSync(img.path);
-                const iv = Buffer.from(img.iv, "hex");
-                const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, iv);
-                const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-                return `data:image/png;base64,${decrypted.toString("base64")}`;
-            });
-            return { ...prod, images: decryptedImages };
-        });
-
-        res.json(decryptedProducts);
+        res.json(products);
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        console.error("Get Products Error:", err);
+        res.status(500).json({ error: err.message });
     }
 });
-
 
 app.get('/cart/:id', async (req, res) => {
     try {
         const cart = await Cart.findOne({ user: req.params.id })
-            .populate('items.product', 'name image')
+            .populate('items.product', 'name images')
             .lean();
-        if (!cart) {
-            return res.json([]);
-        }
+        if (!cart) return res.json([]);
 
         const productIds = cart.items.map(item => item.product._id);
         const discounts = await Discount.find({ product: { $in: productIds } }).lean();
-        const discountMap = discounts.reduce((map, disc) => {
-            map[disc.product.toString()] = disc.discount;
-            return map;
-        }, {});
+        const discountMap = discounts.reduce((map, disc) => { map[disc.product.toString()] = disc.discount; return map; }, {});
 
         const cartItems = cart.items.map(item => ({
             cart_id: item._id,
@@ -533,7 +426,7 @@ app.get('/cart/:id', async (req, res) => {
             discount: discountMap[item.product._id.toString()] || null,
             added_at: cart.added_at,
             product_name: item.product.name,
-            product_image: item.product.image
+            product_image: item.product.images && item.product.images.length > 0 ? item.product.images[0] : null
         }));
 
         res.json(cartItems);
@@ -541,7 +434,6 @@ app.get('/cart/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 
 app.put("/cart/update", async (req, res) => {
     const { cart_id, quantity, userId } = req.body;
@@ -638,7 +530,6 @@ app.get("/products/stock-check", async (req, res) => {
     }
 });
 
-
 app.put('/orders/:orderId/cancel', async (req, res) => {
     const { orderId } = req.params;
     const { reason } = req.body;
@@ -652,6 +543,7 @@ app.put('/orders/:orderId/cancel', async (req, res) => {
         order.status = 'Cancelled';
         order.cancel_reason = reason;
         await order.save({ session });
+
         const bulkOps = order.items.map(item => ({
             updateOne: {
                 filter: { _id: item.product },
@@ -659,6 +551,7 @@ app.put('/orders/:orderId/cancel', async (req, res) => {
             }
         }));
         await Product.bulkWrite(bulkOps, { session });
+
         await session.commitTransaction();
         res.status(200).json({ message: "Order cancelled and stock updated" });
     } catch (err) {
@@ -669,7 +562,6 @@ app.put('/orders/:orderId/cancel', async (req, res) => {
         session.endSession();
     }
 });
-
 
 app.get('/products/:id', async (req, res) => {
     try {
@@ -686,7 +578,6 @@ app.get('/products/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 
 app.get('/products/:id/reviews', async (req, res) => {
     try {
@@ -729,7 +620,7 @@ app.get("/checkorder", async (req, res) => {
     }
 });
 
-
+// --- Server Start ---
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
