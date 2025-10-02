@@ -64,14 +64,18 @@ const Category = mongoose.model('Category', CategorySchema);
 
 // --- Product Schema (Simplified) ---
 const ProductSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    details: { type: String, required: true },
-    price: { type: Number, required: true },
-    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
-    brand: { type: String, required: true },
-    quantity: { type: Number, required: true },
-    images: [String], // Array of image URLs/paths
-    video: { type: String } // optional video URL
+    name: String,
+    details: String,
+    price: Number,
+    category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
+    brand: String,
+    quantity: Number,
+    images: [
+        {
+            data: Buffer,
+            contentType: String
+        }
+    ]
 });
 const Product = mongoose.model('Product', ProductSchema);
 
@@ -227,26 +231,19 @@ app.post("/add-product", upload.array("images"), async (req, res) => {
             await cat.save();
         }
 
-        const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        const imagePaths = [];
+        const imageDocs = [];
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-                const filename = uniqueSuffix + '-' + file.originalname;
-                const filePath = path.join(uploadDir, filename);
-
-                await fs.promises.writeFile(filePath, file.buffer);
-                imagePaths.push(`uploads/${filename}`);
+                imageDocs.push({
+                    data: file.buffer,
+                    contentType: file.mimetype
+                });
             }
         }
 
         const newProduct = new Product({
             name, details, price, category: cat._id, brand, quantity,
-            images: imagePaths
+            images: imageDocs
         });
 
         await newProduct.save();
