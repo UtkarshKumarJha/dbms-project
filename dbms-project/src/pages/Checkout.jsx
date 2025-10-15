@@ -7,10 +7,11 @@ import { toast } from 'react-toastify';
 
 const Checkout = () => {
     const locationState = useLocation();
+    
     const navigate = useNavigate();
 
-    const cart = locationState.state?.cart || [];
-    const singleProduct = locationState.state?.product || null;
+    const cart = React.useMemo(() => locationState.state?.cart || [], []);
+    const singleProduct = React.useMemo(() => locationState.state?.product || null, []);
 
     const [latLng, setLatLng] = useState(null);
     const [address, setAddress] = useState("");

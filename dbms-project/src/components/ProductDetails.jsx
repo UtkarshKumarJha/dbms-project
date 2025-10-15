@@ -4,6 +4,8 @@ import api from "../services/api";
 import ReviewSection from "./ReviewSection";
 import { toast } from "react-toastify";
 
+const baseURL = import.meta.env.VITE_API_BASE_URL;
+
 const ProductDetails = ({ cart, setCart }) => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -38,7 +40,7 @@ const ProductDetails = ({ cart, setCart }) => {
         try {
             await api.post("/addtocart", {
                 userId,
-                product_id: product.product_id,
+                product_id: product._id,
                 quantity: selectedQuantity,
                 price: product.price
             });
@@ -75,8 +77,17 @@ const ProductDetails = ({ cart, setCart }) => {
     return (
         <div className="min-h-screen flex flex-col items-center bg-gray-800 py-10">
             <div className="max-w-4xl bg-gray-900 p-8 rounded-2xl shadow-xl flex flex-col md:flex-row gap-8">
-                <img src={product.image} alt={product.name} className="w-80 h-80 object-cover rounded-lg shadow-md" />
-
+                <div className="flex gap-4 overflow-x-auto">
+  {product.images?.map((img, idx) => (
+    console.log(`${baseURL}${img}`),  // 🔍 Debugging line to verify URL construction
+    <img
+      key={idx}
+      src={`${baseURL}${img}`}   // ✅ same as ProductPage
+      alt={`${product.name}-${idx}`}
+      className="w-40 h-40 object-cover rounded-lg shadow-md"
+    />
+  ))}
+</div>
                 <div className="flex flex-col w-full">
                     <h1 className="text-3xl font-bold text-yellow-500">{product.name}</h1>
                     <p className="text-xl text-gray-400">Brand: {product.brand}</p>

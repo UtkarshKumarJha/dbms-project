@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
+const baseURL = import.meta.env.VITE_API_BASE_URL;
 
 const ProductPage = () => {
     const [products, setProducts] = useState([]);
@@ -143,38 +144,43 @@ const ProductPage = () => {
                 {filteredProducts.length > 0 ? (
                     filteredProducts.map(product => (
                         <div
-                            key={product.product_id}
-                            className="bg-gray-700 rounded-2xl shadow-xl p-5 transition-transform transform hover:scale-105 hover:shadow-2xl hover:rotate-3d"
-                        >
-                            <div className="product-card relative group perspective">
-                                <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    className="w-full h-48 object-cover rounded-lg mb-3 border border-gray-200 transition-transform group-hover:rotate-y-180"
-                                />
-                                <div className="absolute top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 text-white p-5 rounded-lg opacity-0 group-hover:opacity-100 transform group-hover:translate-z-20">
-                                    <h2 className="text-lg font-semibold truncate">{product.name}</h2>
-                                    {product.discount ? (
-                                        <div className="mt-2">
-                                            <p className="text-red-500 line-through text-sm">₹{product.price}</p>
-                                            <p className="text-blue-600 text-lg font-bold">
-                                                ₹{(product.price * (1 - product.discount / 100)).toFixed(2)}
-                                            </p>
-                                            <p className="text-green-600 text-sm font-medium">{product.discount}% Off</p>
-                                        </div>
-                                    ) : (
-                                        <p className="text-blue-600 text-lg font-bold mt-2">₹{product.price}</p>
-                                    )}
-                                </div>
-                            </div>
+    key={product._id}   // <-- use _id, not product_id, since MongoDB gives you _id
+    className="bg-gray-700 rounded-2xl shadow-xl p-5 transition-transform transform hover:scale-105 hover:shadow-2xl hover:rotate-3d"
+>
+    <div className="product-card relative group perspective">
+        <img
+  src={
+    product.images && product.images.length > 0
+      ? `${baseURL}${product.images[0]}`
+      : "D:\Interview\dbms-project\dbms-project\src\assets\noise1.jpg"
+  }
+  alt={product.name}
+/>
 
-                            <Link
-                                to={`/product/${product.product_id}`}
-                                className="mt-3 inline-block font-bold text-yellow-500 hover:text-yellow-400 transition duration-300"
-                            >
-                                View Details
-                            </Link>
-                        </div>
+        <div className="absolute top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 text-white p-5 rounded-lg opacity-0 group-hover:opacity-100 transform group-hover:translate-z-20">
+            <h2 className="text-lg font-semibold truncate">{product.name}</h2>
+            {product.discount ? (
+                <div className="mt-2">
+                    <p className="text-red-500 line-through text-sm">₹{product.price}</p>
+                    <p className="text-blue-600 text-lg font-bold">
+                        ₹{(product.price * (1 - product.discount / 100)).toFixed(2)}
+                    </p>
+                    <p className="text-green-600 text-sm font-medium">{product.discount}% Off</p>
+                </div>
+            ) : (
+                <p className="text-blue-600 text-lg font-bold mt-2">₹{product.price}</p>
+            )}
+        </div>
+    </div>
+
+    <Link
+        to={`/product/${product._id}`}
+        className="mt-3 inline-block font-bold text-yellow-500 hover:text-yellow-400 transition duration-300"
+    >
+        View Details
+    </Link>
+</div>
+
                     ))
                 ) : (
                     <p className="text-white text-xl mt-10 font-semibold">No products found</p>

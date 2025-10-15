@@ -8,7 +8,7 @@ const AddProduct = () => {
         price: '',
         description: '',
         category: '',
-        images: [],  // array for multiple images
+        images: [],
         video: '',
         quantity: 1,
     });
@@ -24,7 +24,6 @@ const AddProduct = () => {
         }));
     };
 
-    // Drag & drop handlers
     const handleDrop = (e) => {
         e.preventDefault();
         setDragOver(false);
@@ -52,37 +51,36 @@ const AddProduct = () => {
     };
 
     const handleSubmit = async (e) => {
-    e.preventDefault();
+        e.preventDefault();
 
-    try {
-        const userId = localStorage.getItem('userId');
-        const brandRes = await api.get(`/checkbrand/${userId}`);
+        try {
+            const userId = localStorage.getItem('userId');
+            const brandRes = await api.get(`/checkbrand/${userId}`);
 
-        const data = new FormData();
-        data.append("user_id", userId);
-        data.append("name", formData.name);
-        data.append("price", formData.price);
-        data.append("details", formData.description);
-        data.append("category", formData.category);
-        data.append("brand", brandRes.data.brand);
-        data.append("quantity", formData.quantity);
+            const data = new FormData();
+            data.append("user_id", userId);
+            data.append("name", formData.name);
+            data.append("price", formData.price);
+            data.append("details", formData.description);
+            data.append("category", formData.category);
+            data.append("brand", brandRes.data.brand);
+            data.append("quantity", formData.quantity);
 
-        formData.images.forEach((file) => {
-            data.append("images", file); // multiple images
-        });
+            formData.images.forEach((file) => {
+                data.append("images", file);
+            });
 
-        const response = await api.post('/add-product', data, {
-            headers: { "Content-Type": "multipart/form-data" }
-        });
+            const response = await api.post('/add-product', data, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
 
-        setMessage(response.data.message || "Product added!");
-        setFormData({ name: '', price: '', description: '', category: '', images: [], video: '', quantity: 1 });
-    } catch (error) {
-        console.error("Upload error:", error);
-        setMessage(error.response?.data?.message || "Error adding product.");
-    }
-};
-
+            setMessage(response.data.message || "Product added!");
+            setFormData({ name: '', price: '', description: '', category: '', images: [], video: '', quantity: 1 });
+        } catch (error) {
+            console.error("Upload error:", error);
+            setMessage(error.response?.data?.message || "Error adding product.");
+        }
+    };
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black p-6">
@@ -154,7 +152,7 @@ const AddProduct = () => {
                         {formData.images.map((img, idx) => (
                             <div key={idx} className="relative">
                                 <img
-                                    src={img}
+                                    src={URL.createObjectURL(img)}
                                     alt={`preview-${idx}`}
                                     className="w-24 h-24 object-cover rounded-lg border border-gray-600"
                                 />

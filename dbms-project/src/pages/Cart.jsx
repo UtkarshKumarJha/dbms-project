@@ -34,13 +34,13 @@ const Cart = () => {
             item.cart_id === cart_id ? { ...item, quantity: newQuantity } : item
         ));
 
-        api.put("/cart/update", { cart_id, quantity: newQuantity })
+        api.put("/cart/update", { cart_id, quantity: newQuantity, userId: userId })
             .then(fetchCart)
             .catch(error => console.error("Error updating quantity:", error));
     };
 
     const removeFromCart = (cart_id) => {
-        api.delete(`/cart/remove/${cart_id}`)
+        api.delete(`/cart/remove/${userId}/${cart_id}`)
             .then(() => fetchCart())
             .catch(error => console.error("Error removing item from cart:", error));
     };

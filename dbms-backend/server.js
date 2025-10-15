@@ -7,6 +7,8 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import multer from "multer";
 import dotenv from 'dotenv';
+import {GridFSBucket, ObjectId} from "mongodb";
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -16,17 +18,36 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.use(cors());
 app.use(express.json());
 
+// --- ADD ENCRYPTION SETUP ---
+const ALGORITHM = "aes-256-cbc";
+
+// Validate SECRET_KEY from .env
+if (!process.env.SECRET_KEY || Buffer.from(process.env.SECRET_KEY, "hex").length !== 32) {
+    console.error("FATAL: SECRET_KEY is missing or invalid in .env. It must be 64 hex characters (32 bytes).");
+    process.exit(1);
+}
+const SECRET_KEY = Buffer.from(process.env.SECRET_KEY, "hex");
+
 // --- Serve uploaded images statically ---
 // This makes the 'uploads' directory publically accessible
 const __dirname = path.resolve();
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- MongoDB Connection ---
+let gfsBucket;
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-}).then(() => console.log("MongoDB connected"))
-  .catch(err => console.error("MongoDB connection error:", err));
+}).then(() => {
+    console.log("MongoDB connected");
+
+    // Initialize GridFSBucket here
+    const db = mongoose.connection.db;
+    gfsBucket = new GridFSBucket(db, {
+        bucketName: "uploads"   // you can name the bucket
+    });
+
+}).catch(err => console.error("MongoDB connection error:", err));
 
 // --- Schema Definitions ---
 const UserSchema = new mongoose.Schema({
@@ -70,13 +91,9 @@ const ProductSchema = new mongoose.Schema({
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
     brand: String,
     quantity: Number,
-    images: [
-        {
-            data: Buffer,
-            contentType: String
-        }
-    ]
+    images: [{ type: mongoose.Schema.Types.ObjectId }] // Store GridFS file IDs
 });
+
 const Product = mongoose.model('Product', ProductSchema);
 
 const DiscountSchema = new mongoose.Schema({
@@ -122,6 +139,18 @@ const ReviewSchema = new mongoose.Schema({
 });
 ReviewSchema.index({ user: 1, product: 1 }, { unique: true });
 const Review = mongoose.model('Review', ReviewSchema);
+
+const convertImagesToBase64 = (product) => {
+    if (product.images && product.images.length > 0) {
+        product.images = product.images.map(img => {
+            if (img.data && img.contentType) {
+                return `data:${img.contentType};base64,${img.data.toString('base64')}`;
+            }
+            return img;
+        });
+    }
+    return product;
+};
 
 // --- Routes ---
 app.post("/signup", async (req, res) => {
@@ -222,28 +251,44 @@ app.get("/pending-requests", async (req, res) => {
 app.post("/add-product", upload.array("images"), async (req, res) => {
     const { user_id, name, details, price, category, brand, quantity } = req.body;
     try {
-        const seller = await Seller.findOne({ user: user_id, is_verified: true });
-        if (!seller) return res.status(403).json({ message: "You are not a verified seller." });
-
         let cat = await Category.findOne({ name: category });
         if (!cat) {
             cat = new Category({ name: category });
             await cat.save();
         }
 
-        const imageDocs = [];
+        const imageIds = [];
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
-                imageDocs.push({
-                    data: file.buffer,
-                    contentType: file.mimetype
+                // ✨ 1. Generate a unique IV for each file
+                const iv = crypto.randomBytes(16);
+
+                // ✨ 2. Encrypt the file buffer
+                const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+                const encryptedBuffer = Buffer.concat([cipher.update(file.buffer), cipher.final()]);
+
+                // ✨ 3. Store the encrypted buffer and save the IV in metadata
+                const uploadStream = gfsBucket.openUploadStream(file.originalname, {
+                    contentType: file.mimetype,
+                    metadata: { iv: iv.toString('hex') } // Store IV for decryption
                 });
+
+                // Write the encrypted data to GridFS
+                uploadStream.end(encryptedBuffer);
+
+                // Wait for the upload to finish to get the ID
+                await new Promise((resolve, reject) => {
+                    uploadStream.on('finish', () => resolve());
+                    uploadStream.on('error', (err) => reject(err));
+                });
+                
+                imageIds.push(uploadStream.id);
             }
         }
 
         const newProduct = new Product({
             name, details, price, category: cat._id, brand, quantity,
-            images: imageDocs
+            images: imageIds
         });
 
         await newProduct.save();
@@ -252,6 +297,57 @@ app.post("/add-product", upload.array("images"), async (req, res) => {
     } catch (err) {
         console.error("Add Product Error:", err);
         res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+app.get("/image/:id", async (req, res) => {
+    try {
+        const fileId = new ObjectId(req.params.id);
+
+        const files = await gfsBucket.find({ _id: fileId }).toArray();
+        if (!files || files.length === 0) {
+            return res.status(404).json({ error: "Image not found" });
+        }
+        const file = files[0];
+
+        // ✨ 1. Check for IV in metadata
+        if (!file.metadata || !file.metadata.iv) {
+            return res.status(500).json({ error: "Cannot decrypt: IV is missing." });
+        }
+
+        const downloadStream = gfsBucket.openDownloadStream(fileId);
+
+        // ✨ 2. Buffer the encrypted chunks
+        const chunks = [];
+        downloadStream.on('data', (chunk) => {
+            chunks.push(chunk);
+        });
+
+        downloadStream.on('error', (err) => {
+            console.error("GridFS download error:", err);
+            res.status(500).json({ error: "Failed to download image." });
+        });
+
+        // ✨ 3. When download is complete, decrypt and send
+        downloadStream.on('end', () => {
+            try {
+                const encryptedBuffer = Buffer.concat(chunks);
+                const iv = Buffer.from(file.metadata.iv, 'hex');
+
+                const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, iv);
+                const decryptedBuffer = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+
+                res.set("Content-Type", file.contentType);
+                res.send(decryptedBuffer);
+            } catch (decryptionError) {
+                console.error("Decryption failed:", decryptionError);
+                res.status(500).json({ error: "Failed to decrypt image." });
+            }
+        });
+
+    } catch (err) {
+        console.error("Image fetch error:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -389,13 +485,19 @@ app.post("/addtocart", async (req, res) => {
 
 app.get('/products', async (req, res) => {
     try {
-        const products = await Product.aggregate([
+        let products = await Product.aggregate([
             { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
-            { $unwind: '$category' },
-            { $lookup: { from: 'discounts', localField: '_id', foreignField: 'product', as: 'discountInfo' } },
-            { $addFields: { category: '$category.name', discount: { $ifNull: [{ $arrayElemAt: ['$discountInfo.discount', 0] }, null] } } },
-            { $project: { discountInfo: 0 } }
+            { $unwind: '$category' }
         ]);
+
+        products = products.map(prod => {
+            return {
+                ...prod,
+                category: prod.category.name,
+                images: prod.images.map(id => `/image/${id}`)
+            };
+        });
+
         res.json(products);
     } catch (err) {
         console.error("Get Products Error:", err);
@@ -562,14 +664,27 @@ app.put('/orders/:orderId/cancel', async (req, res) => {
 
 app.get('/products/:id', async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id)
+        let product = await Product.findById(req.params.id)
             .populate('category', 'name')
             .lean();
+        
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         }
+        
+        // ✨ FIX: Use the same URL mapping strategy as your /products route
+        if (product.images && product.images.length > 0) {
+            product.images = product.images.map(id => `/image/${id}`);
+        }
+        
         const discount = await Discount.findOne({ product: req.params.id }).lean();
         product.discount = discount ? discount.discount : null;
+        
+        // For consistency, ensure category is just the name string
+        if (product.category && product.category.name) {
+            product.category = product.category.name;
+        }
+        
         res.json(product);
     } catch (err) {
         res.status(500).json({ error: err.message });
