@@ -567,40 +567,57 @@ app.delete("/cart/remove/:userId/:itemId", async (req, res) => {
 });
 
 app.post("/create-order", async (req, res) => {
-    const { userId, items, location } = req.body;
-    if (!userId || !items || items.length === 0) {
-        return res.status(400).json({ error: "Invalid order data" });
-    }
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
-        const totalPrice = items.reduce((total, item) => total + item.price * item.quantity, 0);
-        const orderItems = items.map(item => ({
-            product: item.product_id,
-            quantity: item.quantity,
-            price: item.price
-        }));
+        const { userId, items, location } = req.body;
 
-        const newOrder = new Order({ user: userId, items: orderItems, total_price: totalPrice, location });
-        await newOrder.save({ session });
+        if (!userId || !items || !Array.isArray(items) || items.length === 0 || !location) {
+            return res.status(400).json({ error: "Invalid order data." });
+        }
 
-        const bulkOps = items.map(item => ({
-            updateOne: {
-                filter: { _id: item.product_id },
-                update: { $inc: { quantity: -item.quantity } }
+        let totalPrice = 0;
+        const processedItems = [];
+
+        for (const item of items) {
+            const product = await Product.findById(item.product_id);
+            if (!product) {
+                return res.status(404).json({ error: `Product not found: ${item.product_id}` });
             }
-        }));
-        await Product.bulkWrite(bulkOps, { session });
 
-        await Cart.deleteOne({ user: userId }, { session });
+            if (item.quantity > product.quantity) {
+                return res.status(400).json({
+                    error: `Insufficient stock for ${product.name}. Available: ${product.quantity}`,
+                });
+            }
 
-        await session.commitTransaction();
-        res.status(201).json({ message: "Order created successfully", orderId: newOrder._id });
+            product.quantity -= item.quantity;
+            await product.save();
+
+            totalPrice += item.price * item.quantity;
+
+            processedItems.push({
+                product: product._id,
+                quantity: item.quantity,
+                price: item.price,
+            });
+        }
+
+        const newOrder = new Order({
+            user: userId,
+            items: processedItems,
+            total_price: totalPrice,
+            location,
+            status: "Pending",
+        });
+
+        await newOrder.save();
+
+        // Clear user’s cart after successful order (optional)
+        await Cart.findOneAndDelete({ user: userId });
+
+        res.status(201).json({ message: "Order placed successfully!", orderId: newOrder._id });
     } catch (err) {
-        await session.abortTransaction();
-        res.status(500).json({ error: err.message });
-    } finally {
-        session.endSession();
+        console.error("Create order error:", err);
+        res.status(500).json({ error: "Failed to place order." });
     }
 });
 

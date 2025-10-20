@@ -29,7 +29,8 @@ const Checkout = () => {
         const fetchStock = async () => {
             try {
                 if (singleProduct) {
-                    const res = await api.get(`/products/${singleProduct.product_id}`);
+                    console.log(singleProduct.product_id);
+                    const res = await api.get(`/products/${singleProduct._id}`);
                     setAvailableStock(res.data.quantity);
                 } else if (cart.length > 0) {
                     const newStockMap = {};
@@ -95,7 +96,7 @@ const Checkout = () => {
         const orderData = {
             userId,
             items: items.map(item => ({
-                product_id: item.product_id,
+                product_id: item.product_id || item._id,
                 image: item.product_image,
                 quantity: item.quantity,
                 price: item.price
