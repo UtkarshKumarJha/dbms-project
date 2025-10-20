@@ -88,7 +88,7 @@ const ReviewSection = ({ productId }) => {
                 {reviews.length > 0 ? (
                     reviews.map((review) => (
                         <div key={review.id} className="bg-gray-800 p-4 rounded-lg shadow">
-                            <p className="text-sm text-yellow-500">User: {review.name}</p>
+                            <p className="text-sm text-yellow-500">{review.user.name}</p>
                             <p className="text-gray-300">{review.review_text}</p>
                             <p className="text-yellow-400">⭐ {review.rating}</p>
                         </div>

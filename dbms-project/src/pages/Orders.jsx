@@ -21,10 +21,24 @@ const Orders = () => {
 
         api.get(`/orders?userId=${userId}`)
             .then(response => {
-                const groupedOrders = groupOrders(response.data);
-                setOrders(groupedOrders);
-                setLoading(false);
-            })
+        const formatted = response.data.map(order => ({
+            order_id: order._id,
+            status: order.status,
+            location: order.location,
+            date: order.date,
+            total_price: order.total_price,
+            items: order.items.map(item => ({
+                product_id: item.product._id,
+                name: item.product.name,
+                price: item.price,
+                image: item.product.images[0],  // or handle multiple
+                discount: item.discount || 0,
+                quantity: item.quantity
+            }))
+        }));
+        setOrders(formatted);
+        setLoading(false);
+    })
             .catch(() => {
                 setError("Error fetching orders");
                 setLoading(false);
@@ -37,7 +51,7 @@ const Orders = () => {
             const uniqueKey = `${row.date}`;
             if (!ordersMap.has(uniqueKey)) {
                 ordersMap.set(uniqueKey, {
-                    order_id: row.order_id,
+                    order_id: row.order_id|| row._id,
                     status: row.status,
                     location: row.location,
                     discount: row.discount,
