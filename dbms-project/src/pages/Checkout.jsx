@@ -4,6 +4,7 @@ import axios from "axios";
 import api from "../services/api";
 import DeliveryMap from "../components/DeliveryMaps";
 import { toast } from 'react-toastify';
+import PaymentForm from "../components/PaymentForm";// Import PaymentForm component
 
 const Checkout = () => {
     const locationState = useLocation();
@@ -216,6 +217,9 @@ const Checkout = () => {
                         <span>₹{totalAfterDiscount.toFixed(2)}</span>
                     </div>
                 </div>
+                // Payment Form Component
+                <PaymentForm userId={localStorage.getItem("userId")} amount={totalAfterDiscount} />
+                // End Payment Form Component
 
                 <button
                     onClick={placeOrder}

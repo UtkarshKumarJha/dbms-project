@@ -732,6 +732,30 @@ app.get("/checkorder", async (req, res) => {
     }
 });
 
+
+// --- Payment Gateway Simulation ---
+app.post("/make-payment", async (req, res) => {
+    const { userId, cardNumber, cardHolder, expiry, cvv, amount } = req.body;
+    if (!userId || !cardNumber || !cardHolder || !expiry || !cvv || !amount) {
+        return res.status(400).json({ error: "Missing payment details" });
+    }
+
+    // Encrypt payment details
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+    const paymentData = JSON.stringify({ cardNumber, cardHolder, expiry, cvv });
+    const encrypted = Buffer.concat([cipher.update(paymentData), cipher.final()]);
+
+    // Simulate payment processing (no real transaction)
+    res.json({
+        status: "success",
+        message: "Payment processed (simulated)",
+        encryptedDetails: encrypted.toString('hex'),
+        iv: iv.toString('hex'),
+        amount
+    });
+});
+
 // --- Server Start ---
 const PORT = 5000;
 app.listen(PORT, () => {
