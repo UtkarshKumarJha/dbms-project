@@ -79,10 +79,9 @@ const ProductDetails = ({ cart, setCart }) => {
             <div className="max-w-4xl bg-gray-900 p-8 rounded-2xl shadow-xl flex flex-col md:flex-row gap-8">
                 <div className="flex gap-4 overflow-x-auto">
   {product.images?.map((img, idx) => (
-    console.log(`${baseURL}${img}`),  // 🔍 Debugging line to verify URL construction
     <img
       key={idx}
-      src={`${baseURL}${img}`}   // ✅ same as ProductPage
+      src={`${baseURL}${img}`}  
       alt={`${product.name}-${idx}`}
       className="w-40 h-40 object-cover rounded-lg shadow-md"
     />

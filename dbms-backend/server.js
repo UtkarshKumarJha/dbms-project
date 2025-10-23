@@ -140,6 +140,18 @@ const ReviewSchema = new mongoose.Schema({
 ReviewSchema.index({ user: 1, product: 1 }, { unique: true });
 const Review = mongoose.model('Review', ReviewSchema);
 
+const paymentSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    amount: { type: Number, required: true },
+    encryptedDetails: { type: String, required: true },
+    iv: { type: String, required: true },
+    status: { type: String, default: "success" },
+    message: { type: String },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const Payment = mongoose.model("Payment", paymentSchema);
+
 const convertImagesToBase64 = (product) => {
     if (product.images && product.images.length > 0) {
         product.images = product.images.map(img => {
@@ -578,7 +590,7 @@ app.post("/create-order", async (req, res) => {
         const processedItems = [];
 
         for (const item of items) {
-            const product = await Product.findById(item.product_id);
+            const product = await Product.findById(item._id);
             if (!product) {
                 return res.status(404).json({ error: `Product not found: ${item.product_id}` });
             }
