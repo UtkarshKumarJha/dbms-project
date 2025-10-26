@@ -24,13 +24,15 @@ const Checkout = () => {
     const [stockMap, setStockMap] = useState({});
 
     const items = singleProduct
-        ? [{ ...singleProduct, quantity,
-            product_image: `${baseURL}/image/${singleProduct.product_image}`,
-         }]
-        : cart.map(item => ({
-            ...item,
-            product_image: `${baseURL}/image/${item.product_image}`,
-        }));
+    ? [{ 
+        ...singleProduct, 
+        quantity,
+        product_image: `${baseURL}${singleProduct.product_image}` // No extra /image/
+    }]
+    : cart.map(item => ({
+        ...item,
+        product_image: `${baseURL}${item.product_image}` // No extra /image/
+    }));
     console.log("Checkout Items:", items);
 
     useEffect(() => {
