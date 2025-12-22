@@ -9,6 +9,7 @@ import multer from "multer";
 import dotenv from 'dotenv';
 import {GridFSBucket, ObjectId} from "mongodb";
 import crypto from 'crypto';
+import CryptoJS from 'crypto-js';
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ if (!process.env.SECRET_KEY || Buffer.from(process.env.SECRET_KEY, "hex").length
     process.exit(1);
 }
 const SECRET_KEY = Buffer.from(process.env.SECRET_KEY, "hex");
+const FRONTEND_KEY = Buffer.from(process.env.FRONTEND_KEY, "hex");
 
 // --- Serve uploaded images statically ---
 // This makes the 'uploads' directory publically accessible
@@ -140,6 +142,18 @@ const ReviewSchema = new mongoose.Schema({
 ReviewSchema.index({ user: 1, product: 1 }, { unique: true });
 const Review = mongoose.model('Review', ReviewSchema);
 
+const paymentSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    amount: { type: Number, required: true },
+    encryptedDetails: { type: String, required: true },
+    iv: { type: String, required: true },
+    status: { type: String, default: "success" },
+    message: { type: String },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const Payment = mongoose.model("Payment", paymentSchema);
+
 const convertImagesToBase64 = (product) => {
     if (product.images && product.images.length > 0) {
         product.images = product.images.map(img => {
@@ -151,6 +165,39 @@ const convertImagesToBase64 = (product) => {
     }
     return product;
 };
+
+function encryptField(text) {
+  const iv = CryptoJS.lib.WordArray.random(16);
+  
+  // CRITICAL: Parse FRONTEND_KEY as hex (must match frontend)
+  const key = CryptoJS.enc.Hex.parse(process.env.FRONTEND_KEY);
+  
+  const encrypted = CryptoJS.AES.encrypt(
+    String(text), // Ensure it's a string
+    key,
+    {
+      iv,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7
+    }
+  );
+
+  return {
+    data: encrypted.toString(), // base64 ciphertext
+    iv: iv.toString() // hex IV
+  };
+}
+
+function decryptField(jsonString) {
+  const { data, iv } = JSON.parse(jsonString);
+  const ivBuffer = Buffer.from(iv, "hex");
+  const encryptedBuffer = Buffer.from(data, "base64");
+
+  const decipher = crypto.createDecipheriv("aes-256-cbc", FRONTEND_KEY, ivBuffer);
+  const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+  return decrypted.toString("utf-8");
+}
+
 
 // --- Routes ---
 app.post("/signup", async (req, res) => {
@@ -248,51 +295,79 @@ app.get("/pending-requests", async (req, res) => {
     }
 });
 
-app.post("/add-product", upload.array("images"), async (req, res) => {
+app.post("/add-product", upload.fields([
+    { name: "images", maxCount: 10 },
+    { name: "video", maxCount: 1 }
+  ]), async (req, res) => {
     const { user_id, name, details, price, category, brand, quantity } = req.body;
+
     try {
+        const imageIds = [];
+
+        // Each image is coming encrypted from frontend
+        if (req.files && req.files["images"] && req.files["images"].length>0) {
+            for (const file of req.files["images"]) {
+                const { encryptedData, iv: clientIV } = JSON.parse(file.buffer.toString());
+                if (!encryptedData || !clientIV) {
+                    throw new Error("Missing encryptedData or iv from frontend upload.");
+                }
+
+                // STEP 1: Decrypt the incoming encrypted data (from frontend)
+                const clientIvBuffer = Buffer.from(clientIV, "hex");
+                const encryptedBuffer = Buffer.from(encryptedData, "base64");
+
+                // Use the same frontend AES key for decryption (e.g., from env FRONTEND_KEY)
+                const decipher = crypto.createDecipheriv(ALGORITHM, FRONTEND_KEY, clientIvBuffer);
+                const decryptedBuffer = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+
+                // STEP 2: Re-encrypt the raw image buffer for DB storage
+                const dbIV = crypto.randomBytes(16);
+                const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, dbIV);
+                const reEncryptedBuffer = Buffer.concat([cipher.update(decryptedBuffer), cipher.final()]);
+
+                // STEP 3: Upload the re-encrypted buffer to GridFS
+                const uploadStream = gfsBucket.openUploadStream(file.originalname, {
+                    contentType: file.mimetype || "application/octet-stream",
+                    metadata: { iv: dbIV.toString("hex") }
+                });
+
+                uploadStream.end(reEncryptedBuffer);
+
+                await new Promise((resolve, reject) => {
+                    uploadStream.on("finish", () => resolve());
+                    uploadStream.on("error", (err) => reject(err));
+                });
+                imageIds.push(uploadStream.id);
+            }
+        }
+        const decryptedName = decryptField(name);
+        const decryptedDetails = decryptField(details);
+        const decryptedBrand = decryptField(brand);
+        const decryptedPrice = Number(decryptField(price));
+        const decryptedQuantity = Number(decryptField(quantity));
+        
         let cat = await Category.findOne({ name: category });
         if (!cat) {
             cat = new Category({ name: category });
             await cat.save();
         }
 
-        const imageIds = [];
-        if (req.files && req.files.length > 0) {
-            for (const file of req.files) {
-                // ✨ 1. Generate a unique IV for each file
-                const iv = crypto.randomBytes(16);
-
-                // ✨ 2. Encrypt the file buffer
-                const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
-                const encryptedBuffer = Buffer.concat([cipher.update(file.buffer), cipher.final()]);
-
-                // ✨ 3. Store the encrypted buffer and save the IV in metadata
-                const uploadStream = gfsBucket.openUploadStream(file.originalname, {
-                    contentType: file.mimetype,
-                    metadata: { iv: iv.toString('hex') } // Store IV for decryption
-                });
-
-                // Write the encrypted data to GridFS
-                uploadStream.end(encryptedBuffer);
-
-                // Wait for the upload to finish to get the ID
-                await new Promise((resolve, reject) => {
-                    uploadStream.on('finish', () => resolve());
-                    uploadStream.on('error', (err) => reject(err));
-                });
-                
-                imageIds.push(uploadStream.id);
-            }
-        }
-
         const newProduct = new Product({
-            name, details, price, category: cat._id, brand, quantity,
+            name: decryptedName,
+            details: decryptedDetails,
+            price: decryptedPrice,
+            category: cat._id,
+            brand: decryptedBrand,
+            quantity: decryptedQuantity,
             images: imageIds
         });
 
+        console.log({
+  name, details, price, category: cat._id, brand, quantity, images: imageIds
+});
+
         await newProduct.save();
-        res.status(201).json({ message: "Product added successfully." });
+        res.status(201).json({ message: "Product added successfully with decryption-reencryption pipeline." });
 
     } catch (err) {
         console.error("Add Product Error:", err);
@@ -302,7 +377,15 @@ app.post("/add-product", upload.array("images"), async (req, res) => {
 
 app.get("/image/:id", async (req, res) => {
     try {
-        const fileId = new ObjectId(req.params.id);
+        const idParam = req.params.id;
+        
+        // Validate if it's a valid ObjectId format (24 hex characters)
+        if (!idParam || !/^[0-9a-fA-F]{24}$/.test(idParam)) {
+            console.error("Invalid ObjectId format:", idParam);
+            return res.status(400).json({ error: "Invalid image ID format" });
+        }
+        
+        const fileId = new ObjectId(idParam);
 
         const files = await gfsBucket.find({ _id: fileId }).toArray();
         if (!files || files.length === 0) {
@@ -417,11 +500,6 @@ app.get("/profile/:userId", async (req, res) => {
     }
 });
 
-// Assuming otp.js exists and is correctly implemented
-// import { sendOTP, verifyOTP } from "./otp.js";
-// app.post("/forgotpassword/sendotp", sendOTP);
-// app.post("/forgotpassword/verifyotp", verifyOTP);
-
 app.post("/forgotpassword/resetpassword", async (req, res) => {
     const { email, newPassword, confirmPassword } = req.body;
     if (newPassword !== confirmPassword) {
@@ -484,25 +562,27 @@ app.post("/addtocart", async (req, res) => {
 });
 
 app.get('/products', async (req, res) => {
-    try {
-        let products = await Product.aggregate([
-            { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
-            { $unwind: '$category' }
-        ]);
+  try {
+    let products = await Product.aggregate([
+      { $lookup: { from: 'categories', localField: 'category', foreignField: '_id', as: 'category' } },
+      { $unwind: '$category' }
+    ]);
 
-        products = products.map(prod => {
-            return {
-                ...prod,
-                category: prod.category.name,
-                images: prod.images.map(id => `/image/${id}`)
-            };
-        });
+    products = products.map(prod => ({
+      _id: prod._id,
+      name: encryptField(prod.name),
+      price: encryptField(prod.price),
+      brand: encryptField(prod.brand),
+      category: encryptField(prod.category.name),
+      discount: prod.discount || 0,
+      images: prod.images.map(id => `/image/${id}`)
+    }));
 
-        res.json(products);
-    } catch (err) {
-        console.error("Get Products Error:", err);
-        res.status(500).json({ error: err.message });
-    }
+    res.json(products);
+  } catch (err) {
+    console.error("Get Products Error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/cart/:id', async (req, res) => {
@@ -514,7 +594,10 @@ app.get('/cart/:id', async (req, res) => {
 
         const productIds = cart.items.map(item => item.product._id);
         const discounts = await Discount.find({ product: { $in: productIds } }).lean();
-        const discountMap = discounts.reduce((map, disc) => { map[disc.product.toString()] = disc.discount; return map; }, {});
+        const discountMap = discounts.reduce((map, disc) => { 
+            map[disc.product.toString()] = disc.discount; 
+            return map; 
+        }, {});
 
         const cartItems = cart.items.map(item => ({
             cart_id: item._id,
@@ -525,7 +608,9 @@ app.get('/cart/:id', async (req, res) => {
             discount: discountMap[item.product._id.toString()] || null,
             added_at: cart.added_at,
             product_name: item.product.name,
-            product_image: item.product.images && item.product.images.length > 0 ? item.product.images[0] : null
+            product_image: item.product.images && item.product.images.length > 0 
+                ? `/image/${item.product.images[0]}` 
+                : null
         }));
 
         res.json(cartItems);
@@ -578,7 +663,7 @@ app.post("/create-order", async (req, res) => {
         const processedItems = [];
 
         for (const item of items) {
-            const product = await Product.findById(item.product_id);
+            const product = await Product.findById(item._id);
             if (!product) {
                 return res.status(404).json({ error: `Product not found: ${item.product_id}` });
             }
@@ -689,20 +774,33 @@ app.get('/products/:id', async (req, res) => {
             return res.status(404).json({ message: 'Product not found' });
         }
         
-        // ✨ FIX: Use the same URL mapping strategy as your /products route
+        // Map images to URL paths
         if (product.images && product.images.length > 0) {
             product.images = product.images.map(id => `/image/${id}`);
         }
         
+        // Get discount
         const discount = await Discount.findOne({ product: req.params.id }).lean();
-        product.discount = discount ? discount.discount : null;
         
-        // For consistency, ensure category is just the name string
-        if (product.category && product.category.name) {
-            product.category = product.category.name;
-        }
+        // Get category name
+        const categoryName = product.category && product.category.name 
+            ? product.category.name 
+            : product.category;
         
-        res.json(product);
+        // ✅ ENCRYPT sensitive fields before sending
+        const encryptedProduct = {
+            _id: product._id,
+            name: encryptField(product.name),
+            details: encryptField(product.details),
+            price: encryptField(product.price),
+            brand: encryptField(product.brand),
+            category: encryptField(categoryName),
+            quantity: encryptField(product.quantity),
+            discount: discount ? discount.discount : null,
+            images: product.images
+        };
+        
+        res.json(encryptedProduct);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -747,6 +845,30 @@ app.get("/checkorder", async (req, res) => {
         console.error("Database error:", err);
         res.status(500).json({ exists: false, message: "Server error" });
     }
+});
+
+
+// --- Payment Gateway Simulation ---
+app.post("/make-payment", async (req, res) => {
+    const { userId, cardNumber, cardHolder, expiry, cvv, amount } = req.body;
+    if (!userId || !cardNumber || !cardHolder || !expiry || !cvv || !amount) {
+        return res.status(400).json({ error: "Missing payment details" });
+    }
+
+    // Encrypt payment details
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+    const paymentData = JSON.stringify({ cardNumber, cardHolder, expiry, cvv });
+    const encrypted = Buffer.concat([cipher.update(paymentData), cipher.final()]);
+
+    // Simulate payment processing (no real transaction)
+    res.json({
+        status: "success",
+        message: "Payment processed (simulated)",
+        encryptedDetails: encrypted.toString('hex'),
+        iv: iv.toString('hex'),
+        amount
+    });
 });
 
 // --- Server Start ---

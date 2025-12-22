@@ -4,6 +4,9 @@ import axios from "axios";
 import api from "../services/api";
 import DeliveryMap from "../components/DeliveryMaps";
 import { toast } from 'react-toastify';
+import PaymentForm from "../components/PaymentForm";
+
+const baseURL = import.meta.env.VITE_API_BASE_URL;
 
 const Checkout = () => {
     const locationState = useLocation();
@@ -21,14 +24,21 @@ const Checkout = () => {
     const [stockMap, setStockMap] = useState({});
 
     const items = singleProduct
-        ? [{ ...singleProduct, quantity }]
-        : cart;
+    ? [{ 
+        ...singleProduct, 
+        quantity,
+        product_image: `${baseURL}${singleProduct.product_image}` // No extra /image/
+    }]
+    : cart.map(item => ({
+        ...item,
+        product_image: `${baseURL}${item.product_image}` // No extra /image/
+    }));
+    console.log("Checkout Items:", items);
 
     useEffect(() => {
         const fetchStock = async () => {
             try {
                 if (singleProduct) {
-                    console.log(singleProduct.product_id);
                     const res = await api.get(`/products/${singleProduct._id}`);
                     setAvailableStock(res.data.quantity);
                 } else if (cart.length > 0) {
@@ -132,7 +142,7 @@ const Checkout = () => {
 
                         return (
                             <div key={item.product_id} className="flex items-center justify-between border p-4 rounded-lg shadow-md bg-gray-700">
-                                <img src={item.product_image} alt={item.product_name} className="w-24 h-24 object-cover rounded-lg" />
+                            <img src={item.product_image} alt={item.name || item.product_name} className="w-24 h-24 object-cover rounded-lg" />
                                 <div className="flex-1 ml-4">
                                     <h2 className="text-lg font-semibold text-white">{item.product_name}</h2>
                                     {item.discount ? (
@@ -217,9 +227,19 @@ const Checkout = () => {
                         <span>₹{totalAfterDiscount.toFixed(2)}</span>
                     </div>
                 </div>
+        
 
                 <button
-                    onClick={placeOrder}
+                    onClick={() =>
+    navigate("/payment", {
+      state: {
+        userId: localStorage.getItem("userId"),
+        amount: totalAfterDiscount,
+        items: items,
+        locations: `${buildingName}, ${address}`
+      },
+    })
+  }
                     className="mt-6 bg-gold border border-white text-white px-6 py-3 rounded-lg shadow-md hover:bg-yellow-600"
                 >
                     Confirm & Place Order

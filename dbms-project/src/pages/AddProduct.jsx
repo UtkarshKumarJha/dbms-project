@@ -1,6 +1,40 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import CryptoJS from 'crypto-js'; // npm install crypto-js
+
+const KEY = CryptoJS.enc.Hex.parse(import.meta.env.VITE_SECRET_KEY);
+
+
+const fileToWordArray = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const wordArray = CryptoJS.lib.WordArray.create(e.target.result);
+      resolve(wordArray);
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+const encryptFile = async (file) => {
+  const wordArray = await fileToWordArray(file);
+  const iv = CryptoJS.lib.WordArray.random(16);
+
+  const encrypted = CryptoJS.AES.encrypt(wordArray, KEY, {
+    iv,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7
+  });
+
+  return {
+    encryptedData: encrypted.toString(),
+    iv: iv.toString(CryptoJS.enc.Hex)
+  };
+};
+
+
 
 const AddProduct = () => {
     const [formData, setFormData] = useState({
@@ -9,12 +43,13 @@ const AddProduct = () => {
         description: '',
         category: '',
         images: [],
-        video: '',
+        video: null,
         quantity: 1,
     });
 
     const [message, setMessage] = useState('');
-    const [dragOver, setDragOver] = useState(false);
+    const [dragOverImages, setDragOverImages] = useState(false);
+    const [dragOverVideo, setDragOverVideo] = useState(false);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -24,11 +59,22 @@ const AddProduct = () => {
         }));
     };
 
-    const handleDrop = (e) => {
+    const handleImageDrop = (e) => {
         e.preventDefault();
-        setDragOver(false);
-        const files = Array.from(e.dataTransfer.files);
+        setDragOverImages(false);
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
         setFormData(prev => ({ ...prev, images: [...prev.images, ...files] }));
+    };
+
+    const handleVideoDrop = (e) => {
+        e.preventDefault();
+        setDragOverVideo(false);
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('video/')) {
+            setFormData(prev => ({ ...prev, video: file }));
+        } else {
+            setMessage("Only video files are allowed.");
+        }
     };
 
     const handleImageInput = (e) => {
@@ -36,12 +82,30 @@ const AddProduct = () => {
         setFormData(prev => ({ ...prev, images: [...prev.images, ...files] }));
     };
 
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        setDragOver(true);
+    const handleVideoInput = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('video/')) {
+            setFormData(prev => ({ ...prev, video: file }));
+        } else {
+            setMessage("Please upload a valid video file.");
+        }
     };
 
-    const handleDragLeave = () => setDragOver(false);
+    const encrypt = (text) => {
+  const iv = CryptoJS.lib.WordArray.random(16);
+
+  const encrypted = CryptoJS.AES.encrypt(text.toString(), KEY, {
+    iv,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7
+  });
+
+  return JSON.stringify({
+    data: encrypted.toString(),
+    iv: iv.toString(CryptoJS.enc.Hex)
+  });
+};
+
 
     const removeImage = (idx) => {
         setFormData(prev => ({
@@ -52,30 +116,40 @@ const AddProduct = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         try {
             const userId = localStorage.getItem('userId');
             const brandRes = await api.get(`/checkbrand/${userId}`);
 
             const data = new FormData();
             data.append("user_id", userId);
-            data.append("name", formData.name);
-            data.append("price", formData.price);
-            data.append("details", formData.description);
-            data.append("category", formData.category);
-            data.append("brand", brandRes.data.brand);
-            data.append("quantity", formData.quantity);
 
-            formData.images.forEach((file) => {
-                data.append("images", file);
-            });
+            // Encrypt sensitive text fields
+            data.append("name", encrypt(formData.name));
+            data.append("price", encrypt(formData.price));
+            data.append("details", encrypt(formData.description));
+            data.append("category", encrypt(formData.category));
+            data.append("brand", encrypt(brandRes.data.brand));
+            data.append("quantity", encrypt(formData.quantity));
 
+            // Encrypt and upload images
+            for (const file of formData.images) {
+                const encrypted = await encryptFile(file);
+                const jsonBlob = new Blob([JSON.stringify(encrypted)], { type: "application/json" });
+                data.append("images", jsonBlob, file.name + ".enc");
+            }
+
+            if (formData.video) {
+            const encryptedVideo = await encryptFile(formData.video);
+            const videoBlob = new Blob([JSON.stringify(encryptedVideo)], { type: "application/json" });
+            data.append("video", videoBlob, formData.video.name + ".enc");
+            }
+            
             const response = await api.post('/add-product', data, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
 
             setMessage(response.data.message || "Product added!");
-            setFormData({ name: '', price: '', description: '', category: '', images: [], video: '', quantity: 1 });
+            setFormData({ name: '', price: '', description: '', category: '', images: [], video: null, quantity: 1 });
         } catch (error) {
             console.error("Upload error:", error);
             setMessage(error.response?.data?.message || "Error adding product.");
@@ -104,8 +178,7 @@ const AddProduct = () => {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    {/* Basic fields */}
-                    {[
+                    {[ 
                         { name: 'name', type: 'text', placeholder: 'Product Name' },
                         { name: 'price', type: 'number', placeholder: 'Price' },
                         { name: 'category', type: 'text', placeholder: 'Category' },
@@ -124,13 +197,13 @@ const AddProduct = () => {
                         />
                     ))}
 
-                    {/* Drag and Drop for images */}
+                    {/* Image Upload */}
                     <div
-                        onDrop={handleDrop}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
+                        onDrop={handleImageDrop}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverImages(true); }}
+                        onDragLeave={() => setDragOverImages(false)}
                         className={`w-full p-6 border-2 rounded-lg text-center cursor-pointer transition ${
-                            dragOver ? 'border-blue-500 bg-blue-900 bg-opacity-30' : 'border-gray-600 bg-gray-700'
+                            dragOverImages ? 'border-blue-500 bg-blue-900 bg-opacity-30' : 'border-gray-600 bg-gray-700'
                         }`}
                     >
                         <p className="text-white">Drag & Drop Images Here or Click to Upload</p>
@@ -140,14 +213,14 @@ const AddProduct = () => {
                             multiple
                             onChange={handleImageInput}
                             className="hidden"
-                            id="fileInput"
+                            id="imageInput"
                         />
-                        <label htmlFor="fileInput" className="block mt-2 text-blue-400 cursor-pointer underline">
+                        <label htmlFor="imageInput" className="block mt-2 text-blue-400 cursor-pointer underline">
                             Browse Files
                         </label>
                     </div>
 
-                    {/* Image preview */}
+                    {/* Image Preview */}
                     <div className="flex flex-wrap gap-3 mt-3">
                         {formData.images.map((img, idx) => (
                             <div key={idx} className="relative">
@@ -167,17 +240,37 @@ const AddProduct = () => {
                         ))}
                     </div>
 
-                    {/* Video URL */}
-                    <input
-                        type="text"
-                        name="video"
-                        placeholder="Video URL (optional)"
-                        value={formData.video}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-                    />
+                    {/* Video Upload */}
+                    <div
+                        onDrop={handleVideoDrop}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverVideo(true); }}
+                        onDragLeave={() => setDragOverVideo(false)}
+                        className={`w-full p-6 border-2 rounded-lg text-center cursor-pointer transition ${
+                            dragOverVideo ? 'border-purple-500 bg-purple-900 bg-opacity-30' : 'border-gray-600 bg-gray-700'
+                        }`}
+                    >
+                        <p className="text-white">Drag & Drop Video Here or Click to Upload</p>
+                        <input
+                            type="file"
+                            accept="video/*"
+                            onChange={handleVideoInput}
+                            className="hidden"
+                            id="videoInput"
+                        />
+                        <label htmlFor="videoInput" className="block mt-2 text-purple-400 cursor-pointer underline">
+                            Browse Video
+                        </label>
+                    </div>
 
-                    {/* Description */}
+                    {/* Video Preview */}
+                    {formData.video && (
+                        <video
+                            controls
+                            className="w-full rounded-lg border border-gray-600 mt-3"
+                            src={URL.createObjectURL(formData.video)}
+                        />
+                    )}
+
                     <textarea
                         name="description"
                         placeholder="Description"
@@ -188,14 +281,13 @@ const AddProduct = () => {
                         className="w-full px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
                     />
 
-                    {/* Submit */}
                     <motion.button
                         type="submit"
                         whileTap={{ scale: 0.95 }}
                         whileHover={{ scale: 1.05 }}
                         className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg transition duration-300"
                     >
-                        🚀 Add Product
+                        🚀 Add Product (Encrypted)
                     </motion.button>
                 </form>
             </motion.div>

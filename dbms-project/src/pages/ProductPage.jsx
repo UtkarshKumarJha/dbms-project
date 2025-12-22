@@ -1,7 +1,66 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
+import CryptoJS from "crypto-js";
+
+const KEY = CryptoJS.enc.Hex.parse(import.meta.env.VITE_SECRET_KEY);
+
 const baseURL = import.meta.env.VITE_API_BASE_URL;
+
+
+function decryptField(field) {
+  try {
+    // Add validation
+    if (!field) {
+      console.warn("decryptField: field is null/undefined");
+      return "";
+    }
+    
+    if (typeof field !== "object") {
+      console.warn("decryptField: field is not an object, got:", typeof field, field);
+      return String(field); // If it's already a plain value, return it
+    }
+    
+    if (!field.data || !field.iv) {
+      console.warn("decryptField: missing data or iv", field);
+      return "";
+    }
+
+    console.log("Decrypting field:", { 
+      dataLength: field.data.length, 
+      ivLength: field.iv.length,
+      dataSample: field.data.substring(0, 20) + "..."
+    });
+
+    const ciphertext = CryptoJS.enc.Base64.parse(field.data);
+    const iv = CryptoJS.enc.Hex.parse(field.iv);
+
+    const decrypted = CryptoJS.AES.decrypt(
+      { ciphertext },
+      KEY,
+      {
+        iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7,
+      }
+    );
+
+    const result = decrypted.toString(CryptoJS.enc.Utf8);
+    
+    if (!result) {
+      console.error("Decryption produced empty result");
+      return "";
+    }
+    
+    console.log("Successfully decrypted:", result);
+    return result;
+    
+  } catch (error) {
+    console.error("Decryption error:", error, "Field:", field);
+    return ""; // Return empty string on error instead of crashing
+  }
+}
+
 
 const ProductPage = () => {
     const [products, setProducts] = useState([]);
@@ -15,25 +74,54 @@ const ProductPage = () => {
 
     const userId = localStorage.getItem("userId");
 
+    // ✅ CHECK IF USER IS A SELLER
     useEffect(() => {
-        api.get("/products")
-            .then(response => {
-                setProducts(response.data);
-            })
-            .catch(error => {
-                console.error("Error fetching products:", error);
-            });
-
         if (userId) {
             api.get(`/is-verified/${userId}`)
-                .then(response => {
-                    setIsSeller(response.data.isSeller);
+                .then(res => {
+                    setIsSeller(res.data.isSeller);
                 })
-                .catch(error => {
-                    console.error("Error checking seller status:", error);
-                });
+                .catch(err => console.error("Error checking seller status:", err));
         }
     }, [userId]);
+
+    // FETCH PRODUCTS
+    useEffect(() => {
+        api.get("/products")
+            .then(res => {
+                console.log("=== RAW ENCRYPTED RESPONSE ===");
+                console.log(JSON.stringify(res.data[0], null, 2));
+
+                const decrypted = res.data.map((p, index) => {
+                    try {
+                        console.log(`\n--- Decrypting product ${index} ---`);
+                        
+                        const obj = {
+                            ...p,
+                            name: decryptField(p.name),
+                            price: parseFloat(decryptField(p.price)) || 0,
+                            brand: decryptField(p.brand),
+                            category: decryptField(p.category),
+                            discount: p.discount && typeof p.discount === "object"
+                                ? parseFloat(decryptField(p.discount)) || 0
+                                : (p.discount || 0)
+                        };
+
+                        console.log("DECRYPTED PRODUCT:", obj);
+                        return obj;
+                    } catch (err) {
+                        console.error(`Error decrypting product ${index}:`, err);
+                        return null;
+                    }
+                }).filter(p => p !== null);
+
+                console.log("=== FULL DECRYPTED ARRAY ===");
+                console.table(decrypted);
+
+                setProducts(decrypted);
+            })
+            .catch(err => console.error("API ERROR:", err));
+    }, []);
 
     const categories = ["All", ...new Set(products.map(product => product.category))];
     const brands = ["All", ...new Set(products.map(product => product.brand))];
@@ -58,17 +146,18 @@ const ProductPage = () => {
             <h1 className="text-4xl font-extrabold mb-2 drop-shadow-lg tracking-wide">Our Products</h1>
             <p className="text-lg mb-6 text-gray-200">Find the best gadgets & accessories for your needs</p>
 
+            {/* ✅ SHOW BUTTONS ONLY IF USER IS A SELLER */}
             {isSeller && (
                 <div className="mb-6 flex flex-wrap gap-4 justify-center">
                     <Link
                         to="/add-product"
-                        className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full font-bold shadow-md transition-transform transform hover:scale-110 hover:rotate-3d"
+                        className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full font-bold shadow-md transition-transform transform hover:scale-110"
                     >
                         + Add Product
                     </Link>
                     <Link
                         to="/add-discount"
-                        className="px-6 py-3 bg-yellow-400 hover:bg-yellow-500 text-indigo-900 rounded-full font-bold shadow-md transition-transform transform hover:scale-110 hover:rotate-3d"
+                        className="px-6 py-3 bg-yellow-400 hover:bg-yellow-500 text-indigo-900 rounded-full font-bold shadow-md transition-transform transform hover:scale-110"
                     >
                         + Add Discount
                     </Link>
@@ -144,49 +233,48 @@ const ProductPage = () => {
                 {filteredProducts.length > 0 ? (
                     filteredProducts.map(product => (
                         <div
-    key={product._id}   // <-- use _id, not product_id, since MongoDB gives you _id
-    className="bg-gray-700 rounded-2xl shadow-xl p-5 transition-transform transform hover:scale-105 hover:shadow-2xl hover:rotate-3d"
->
-    <div className="product-card relative group perspective">
-        <img
-  src={
-    product.images && product.images.length > 0
-      ? `${baseURL}${product.images[0]}`
-      : "D:\Interview\dbms-project\dbms-project\src\assets\noise1.jpg"
-  }
-  alt={product.name}
-/>
+                            key={product._id}
+                            className="bg-gray-700 rounded-2xl shadow-xl p-5 transition-transform transform hover:scale-105 hover:shadow-2xl"
+                        >
+                            <div className="product-card relative group perspective">
+                                <img
+                                    src={
+                                        product.images && product.images.length > 0
+                                            ? `${baseURL}${product.images[0]}`
+                                            : "/placeholder.png"
+                                    }
+                                    alt={product.name}
+                                    className="w-full h-48 object-cover rounded-lg"
+                                />
 
-        <div className="absolute top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 text-white p-5 rounded-lg opacity-0 group-hover:opacity-100 transform group-hover:translate-z-20">
-            <h2 className="text-lg font-semibold truncate">{product.name}</h2>
-            {product.discount ? (
-                <div className="mt-2">
-                    <p className="text-red-500 line-through text-sm">₹{product.price}</p>
-                    <p className="text-blue-600 text-lg font-bold">
-                        ₹{(product.price * (1 - product.discount / 100)).toFixed(2)}
-                    </p>
-                    <p className="text-green-600 text-sm font-medium">{product.discount}% Off</p>
-                </div>
-            ) : (
-                <p className="text-blue-600 text-lg font-bold mt-2">₹{product.price}</p>
-            )}
-        </div>
-    </div>
+                                <div className="absolute top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 text-white p-5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                    <h2 className="text-lg font-semibold truncate">{product.name}</h2>
+                                    {product.discount ? (
+                                        <div className="mt-2">
+                                            <p className="text-red-500 line-through text-sm">₹{product.price}</p>
+                                            <p className="text-blue-600 text-lg font-bold">
+                                                ₹{(product.price * (1 - product.discount / 100)).toFixed(2)}
+                                            </p>
+                                            <p className="text-green-600 text-sm font-medium">{product.discount}% Off</p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-blue-600 text-lg font-bold mt-2">₹{product.price}</p>
+                                    )}
+                                </div>
+                            </div>
 
-    <Link
-        to={`/product/${product._id}`}
-        className="mt-3 inline-block font-bold text-yellow-500 hover:text-yellow-400 transition duration-300"
-    >
-        View Details
-    </Link>
-</div>
-
+                            <Link
+                                to={`/product/${product._id}`}
+                                className="mt-3 inline-block font-bold text-yellow-500 hover:text-yellow-400 transition duration-300"
+                            >
+                                View Details
+                            </Link>
+                        </div>
                     ))
                 ) : (
-                    <p className="text-white text-xl mt-10 font-semibold">No products found</p>
+                    <p className="text-white text-xl mt-10 font-semibold col-span-full text-center">No products found</p>
                 )}
             </div>
-
         </div>
     );
 };

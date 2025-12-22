@@ -6,17 +6,94 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 import api from "../services/api";
+import CryptoJS from "crypto-js";
 
 // Get the base URL for images from your environment variables
 const baseURL = import.meta.env.VITE_API_BASE_URL;
+const KEY = CryptoJS.enc.Hex.parse(import.meta.env.VITE_SECRET_KEY);
+
+// Add the same decryptField function
+function decryptField(field) {
+  try {
+    // Add validation
+    if (!field) {
+      console.warn("decryptField: field is null/undefined");
+      return "";
+    }
+    
+    if (typeof field !== "object") {
+      console.warn("decryptField: field is not an object, got:", typeof field, field);
+      return String(field); // If it's already a plain value, return it
+    }
+    
+    if (!field.data || !field.iv) {
+      console.warn("decryptField: missing data or iv", field);
+      return "";
+    }
+
+    const ciphertext = CryptoJS.enc.Base64.parse(field.data);
+    const iv = CryptoJS.enc.Hex.parse(field.iv);
+
+    const decrypted = CryptoJS.AES.decrypt(
+      { ciphertext },
+      KEY,
+      {
+        iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7,
+      }
+    );
+
+    const result = decrypted.toString(CryptoJS.enc.Utf8);
+    
+    if (!result) {
+      console.error("Decryption produced empty result");
+      return "";
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error("Decryption error:", error, "Field:", field);
+    return ""; // Return empty string on error instead of crashing
+  }
+}
 
 const Home = () => {
     const [products, setProducts] = useState([]);
 
     useEffect(() => {
-        // Fetch only a few products for the homepage for better performance
-        api.get("/products?limit=10") // You can add a limit parameter to your API
-            .then(response => setProducts(response.data))
+        // Fetch only a few products for the homepage
+        api.get("/products?limit=10")
+            .then(response => {
+                console.log("=== HOME PAGE - RAW ENCRYPTED RESPONSE ===");
+                console.log(JSON.stringify(response.data[0], null, 2));
+
+                // Decrypt the products
+                const decrypted = response.data.map((p, index) => {
+                    try {
+                        const obj = {
+                            ...p,
+                            name: decryptField(p.name),
+                            price: parseFloat(decryptField(p.price)) || 0,
+                            brand: decryptField(p.brand),
+                            category: decryptField(p.category),
+                            discount: p.discount && typeof p.discount === "object"
+                                ? parseFloat(decryptField(p.discount)) || 0
+                                : (p.discount || 0)
+                        };
+                        return obj;
+                    } catch (err) {
+                        console.error(`Error decrypting product ${index}:`, err);
+                        return null;
+                    }
+                }).filter(p => p !== null);
+
+                console.log("=== HOME PAGE - DECRYPTED PRODUCTS ===");
+                console.table(decrypted);
+                
+                setProducts(decrypted);
+            })
             .catch(error => console.error("Error fetching products:", error));
     }, []);
 
@@ -59,15 +136,13 @@ const Home = () => {
                     >
                         {products.map((product) => (
                             <SwiperSlide key={product._id}>
-                                {/* ✨ FIX: Wrap the card with a Link to the product's detail page */}
                                 <Link to={`/product/${product._id}`}>
                                     <div className="p-5 bg-white/5 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 transition-transform transform hover:scale-105 h-full flex flex-col justify-between">
                                         <img
-                                            // ✨ FIX: Construct the correct image URL from the 'images' array
                                             src={
                                                 product.images && product.images.length > 0
                                                     ? `${baseURL}${product.images[0]}`
-                                                    : "/placeholder.png" // A placeholder image in your public folder
+                                                    : "/placeholder.png"
                                             }
                                             alt={product.name}
                                             className="w-full h-60 object-cover rounded-xl mb-4 border border-white/10"
